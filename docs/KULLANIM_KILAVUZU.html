@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIST30 AI Trader - Kullanım Kılavuzu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e293b;
+            --text-color: #334155;
+            --bg-color: #f8fafc;
+            --code-bg: #1e1e1e;
+            --code-text: #e2e8f0;
+            --border-color: #e2e8f0;
+            --accent-color: #eff6ff;
+            --note-bg: #fff7ed;
+            --note-border: #f97316;
+            --tip-bg: #ecfdf5;
+            --tip-border: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 8px;
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: var(--secondary-color);
+            font-weight: 600;
+            margin-top: 1.5em;
+            margin-bottom: 0.75em;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.3rem;
+            color: var(--primary-color);
+        }
+
+        h3 {
+            font-size: 1.35rem;
+            margin-top: 1.5rem;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            margin-top: 1.25rem;
+            color: #475569;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        a:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
+
+        ul,
+        ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: var(--code-text);
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--secondary-color);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: var(--accent-color);
+            color: var(--primary-color);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--secondary-color);
+            color: #ffffff;
+            font-weight: 500;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+
+        tr:nth-child(even) {
+            background-color: var(--bg-color);
+        }
+
+        tr:hover {
+            background-color: var(--accent-color);
+        }
+
+        /* Custom Alert Boxes */
+        .alert {
+            margin: 1.5rem 0;
+            padding: 1rem 1.5rem;
+            border-left: 4px solid;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .alert-note {
+            background-color: var(--note-bg);
+            border-color: var(--note-border);
+            color: #7c2d12;
+        }
+
+        .alert-tip {
+            background-color: var(--tip-bg);
+            border-color: var(--tip-border);
+            color: #064e3b;
+        }
+
+        .alert-title {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: var(--border-color);
+            margin: 2rem 0;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                margin-top: 0;
+                border-radius: 0;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            h2 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>BIST30 AI Trader - Kullanım Kılavuzu</h1>
+            <p>Bu belge, BIST30 AI Trader yazılımının kurulumu, yapılandırılması ve etkili kullanımı için
+                hazırlanmıştır. Sistem, hem günlük al/sat sinyalleri üretmek hem de risksiz ortamda stratejileri test
+                etmek (Paper Trading) için gelişmiş araçlar sunar.</p>
+        </header>
+
+        <div class="content">
+            <section id="kurulum">
+                <h2>1. Kurulum ve Hazırlık</h2>
+
+                <h3>Ön Gereksinimler</h3>
+                <ul>
+                    <li><strong>Python 3.8</strong> veya üzeri yüklü olmalı.</li>
+                    <li><strong>Git</strong> aracı yüklü olmalı.</li>
+                    <li>İnternet bağlantısı (Veri çekmek için).</li>
+                </ul>
+
+                <h3>Hızlı Kurulum</h3>
+                <p>Aşağıdaki komutları sırasıyla terminalde çalıştırarak sistemi hazır hale getirin:</p>
+                <pre><code># 1. Projeyi Klonlayın
+git clone https://github.com/alptigingorkem-coder/bist30_ai_trader.git
+cd bist30_ai_trader
+
+# 2. Sanal Ortam Oluşturun (Önerilen)
+python -m venv venv
+.\venv\Scripts\activate
+
+# 3. Kütüphaneleri Yükleyin
+pip install -r requirements.txt
+
+# 4. Ayar Dosyasını Oluşturun
+copy config.example.py config.py</code></pre>
+
+                <div class="alert alert-note">
+                    <span class="alert-title">NOT</span>
+                    <code>config.py</code> dosyasını açarak API anahtarlarınızı (varsa) ve risk parametrelerini
+                    düzenleyebilirsiniz. Herhangi bir ayar yapmadan da varsayılan değerlerle çalışır.
+                </div>
+            </section>
+
+            <section id="komutlar">
+                <h2>2. Hangi Komut Ne İşe Yarar?</h2>
+                <p>Sistemi kullanmak için aşağıdaki ana komutları kullanabilirsiniz.</p>
+
+                <h3>A. Günlük Sinyal Üretimi (<code>daily_run.py</code>)</h3>
+                <p>Yapay zeka modellerini çalıştırarak o gün için al, sat veya tut tavsiyeleri üretir.</p>
+                <ul>
+                    <li><strong>Komut:</strong> <code>python daily_run.py</code></li>
+                    <li><strong>Ne Yapar?</strong>
+                        <ul>
+                            <li>Güncel verileri çeker.</li>
+                            <li>Sektörel stratejileri çalıştırır.</li>
+                            <li>Macro Gate (Piyasa Güvenliği) kontrolü yapar.</li>
+                            <li>Sonuçları ekrana yazar ve bir CSV raporu oluşturur.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Ne Zaman Çalıştırılmalı?</strong>
+                        <ul>
+                            <li><strong>Piyasa Kapandıktan Sonra (18:15+)</strong>: Ertesi gün için plan yapmak
+                                amacıyla.</li>
+                            <li><strong>Piyasa Açılmadan Önce (09:00 - 09:55)</strong>: Son kontroller için.</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>B. Paper Trading (Simülasyon)</h3>
+                <p>Sistemi gerçek para riske etmeden test etmek için iki farklı mod bulunur.</p>
+
+                <h4>1. Stateless (Durumsuz) Mod (<code>run_paper.py</code>)</h4>
+                <p>Anlık sinyal kalitesini test eder. Geçmiş pozisyonları hatırlamaz, sadece "o anki" sinyalin
+                    doğruluğuna ve sistemin engelleme yapıp yapmadığına bakar.</p>
+                <ul>
+                    <li><strong>Komut:</strong> <code>python run_paper.py</code></li>
+                    <li><strong>Kullanım Amacı:</strong> Stratejinin o an sinyal üretip üretmediğini, slippage (fiyat
+                        kayması) hesaplarını ve Macro Gate engellerini hızlıca kontrol etmek için.</li>
+                </ul>
+
+                <h4>2. Position-Aware (Pozisyon Takipli) Mod (<code>position_runner.py</code>)</h4>
+                <p>Gerçek bir portföy yönetir gibi çalışır. Kasanızdaki nakiti, açık pozisyonlarınızı ve kar/zarar
+                    durumunuzu takip eder.</p>
+                <ul>
+                    <li><strong>Komut:</strong> <code>python paper_trading_position_aware/position_runner.py</code></li>
+                    <li><strong>Ek Özellikler:</strong>
+                        <ul>
+                            <li><code>OPEN_POSITION</code>: Yeni hisse alır.</li>
+                            <li><code>CLOSE_POSITION</code>: Mevcut hisseyi satar.</li>
+                            <li><code>SCALE_IN/OUT</code>: Pozisyonu büyütür veya küçültür.</li>
+                            <li><code>HOLD</code>: Pozisyonu korur.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Ne Zaman Çalıştırılmalı?</strong> Her işlem günü <strong>bir kez</strong>, tercihen
+                        piyasa kapanışından sonra (18:15+) çalıştırılmalıdır.</li>
+                </ul>
+
+                <h3>C. Modelleri Eğitmek (<code>train_models.py</code>)</h3>
+                <p>Yapay zeka modellerini (Random Forest ve LSTM) güncel verilerle yeniden eğitir.</p>
+                <ul>
+                    <li><strong>Komut:</strong> <code>python train_models.py</code></li>
+                    <li><strong>Ne Sıklıkla?</strong> Haftada bir veya piyasada büyük bir değişim olduğunda
+                        çalıştırılması önerilir.</li>
+                </ul>
+            </section>
+
+            <section id="veriler">
+                <h2>3. Verilerim Nerede?</h2>
+                <p>Sistem ürettiği verileri düzenli bir klasör yapısında saklar. İşte önemli dosyaların yerleri:</p>
+
+                <h3>📁 Paper Trading Verileri (Simülasyon)</h3>
+                <p>Position-Aware modunu kullanırken oluşan tüm portföy verileri burada tutulur.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Veri Tipi</th>
+                            <th>Dosya Yolu</th>
+                            <th>Açıklama</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Portföy Durumu</strong></td>
+                            <td><code>paper_trading_position_aware/logs/portfolio_state.json</code></td>
+                            <td>Anlık nakit, açık hisseler ve maliyetleriniz. (<strong>Bu dosya silinirse portföy
+                                    sıfırlanır!</strong>)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Günlük Loglar</strong></td>
+                            <td><code>paper_trading_position_aware/logs/daily/</code></td>
+                            <td>Her gün için oluşturulan detaylı işlem kayıtları (JSON).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Özet Raporlar</strong></td>
+                            <td><code>paper_trading_position_aware/logs/summary/</code></td>
+                            <td>Tüm oturumların özet performans tablosu (<code>all_sessions.csv</code>).</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>📁 Stateless (Anlık) Test Logları</h3>
+                <p><code>run_paper.py</code> çalıştırdığınızda oluşan loglar.</p>
+                <ul>
+                    <li><strong>Konum:</strong> <code>logs/paper_trading/paper_trades_YYYY-MM-DD.json</code></li>
+                </ul>
+
+                <h3>📁 Günlük Sinyal Raporları</h3>
+                <p><code>daily_run.py</code> ile üretilen al/sat sinyal listeleri.</p>
+                <ul>
+                    <li><strong>Konum:</strong> <code>reports/signals_YYYYMMDD.csv</code></li>
+                    <li><strong>Format:</strong> Excel ile açılabilir CSV dosyası. İçeriğe Tarih, Hisse, Sinyal, Güven
+                        Oranı ve Stop-Loss seviyeleri dahildir.</li>
+                </ul>
+            </section>
+
+            <section id="sorun-giderme">
+                <h2>4. Sorun Giderme ve İpuçları</h2>
+
+                <div class="alert alert-tip">
+                    <span class="alert-title">İPUCU: Portföyü Sıfırlamak İstiyorum</span>
+                    Position-Aware modunda baştan başlamak isterseniz şu komutu kullanın:<br>
+                    <code>python paper_trading_position_aware/position_runner.py --reset</code>
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sorun</th>
+                            <th>Olası Neden</th>
+                            <th>Çözüm</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>"System Halted" hatası</strong></td>
+                            <td>Piyasa çok riskli (VIX yüksek veya sert düşüş).</td>
+                            <td>Sistem güvenli moddadır, işlem yapılması önerilmez.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sinyal Çıkmıyor</strong></td>
+                            <td>Strateji kriterleri sağlanmıyor olabilir.</td>
+                            <td><code>daily_run.py</code> çıktısında "Wait" veya "Macro Blocked" uyarılarına bakın.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Veri Hatası</strong></td>
+                            <td>İnternet bağlantısı kesik olabilir.</td>
+                            <td>Bağlantınızı kontrol edip tekrar deneyin.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p><strong>Teknik Destek:</strong> Sorun yaşamaya devam ederseniz <code>logs/</code> klasöründeki son
+                    dosyaları inceleyerek hatanın kaynağını bulabilirsiniz.</p>
+            </section>
+        </div>
+
+        <div class="footer">
+            <p><strong>Son Güncelleme:</strong> 2026-02-01 | <strong>Versiyon:</strong> 2.1</p>
+        </div>
+    </div>
+
+</body>
+
+</html>

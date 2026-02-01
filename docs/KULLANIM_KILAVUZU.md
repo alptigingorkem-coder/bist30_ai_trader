@@ -1,131 +1,124 @@
 # BIST30 AI Trader - Kullanım Kılavuzu
 
-Bu belge, BIST30 AI Trader yazılımının kurulumu, yapılandırılması ve kullanımı hakkında detaylı bilgi içerir.
+Bu belge, BIST30 AI Trader yazılımının kurulumu, yapılandırılması ve etkili kullanımı için hazırlanmıştır. Sistem, hem günlük al/sat sinyalleri üretmek hem de risksiz ortamda stratejileri test etmek (Paper Trading) için gelişmiş araçlar sunar.
 
 ---
 
-## 1. Kurulum
+## 1. Kurulum ve Hazırlık
 
-### Ön Hazırlıklar
-- Python 3.8+ yüklü olmalı
-- `git` aracı yüklü olmalı
+### Ön Gereksinimler
+- **Python 3.8** veya üzeri yüklü olmalı.
+- **Git** aracı yüklü olmalı.
+- İnternet bağlantısı (Veri çekmek için).
 
-### Adım Adım Kurulum
+### Hızlı Kurulum
+Aşağıdaki komutları sırasıyla terminalde çalıştırarak sistemi hazır hale getirin:
 
 ```bash
-# 1. Projeyi indirin
+# 1. Projeyi Klonlayın
 git clone https://github.com/alptigingorkem-coder/bist30_ai_trader.git
 cd bist30_ai_trader
 
-# 2. Sanal ortam oluşturun (Windows)
+# 2. Sanal Ortam Oluşturun (Önerilen)
 python -m venv venv
 .\venv\Scripts\activate
 
-# 3. Kütüphaneleri yükleyin
+# 3. Kütüphaneleri Yükleyin
 pip install -r requirements.txt
 
-# 4. Konfigürasyonu hazırlayın
+# 4. Ayar Dosyasını Oluşturun
 copy config.example.py config.py
 ```
 
----
-
-## 2. Yapılandırma (`config.py`)
-
-| Ayar | Açıklama |
-|------|----------|
-| `API_KEYS` | TCMB, Twitter API anahtarları |
-| `MODEL_PARAMS` | RF ve LSTM eğitim parametreleri |
-| `STRATEGY_PARAMS` | Stop-Loss, Take-Profit oranları |
-| `MACRO_GATE_ENABLED` | Makro filtre aktif/pasif |
+> [!NOTE]
+> `config.py` dosyasını açarak API anahtarlarınızı (varsa) ve risk parametrelerini düzenleyebilirsiniz. Herhangi bir ayar yapmadan da varsayılan değerlerle çalışır.
 
 ---
 
-## 3. Temel Kullanım
+## 2. Hangi Komut Ne İşe Yarar?
 
-### A. Modellerin Eğitimi
-```bash
-python train_models.py
-```
-Modeller `models/saved/` klasörüne kaydedilir.
+Sistemi kullanmak için aşağıdaki ana komutları kullanabilirsiniz.
 
-### B. Günlük Sinyal Üretimi
-```bash
-python daily_run.py
-```
-Terminalde al/sat önerileri görüntülenir.
+### A. Günlük Sinyal Üretimi (`daily_run.py`)
+Yapay zeka modellerini çalıştırarak o gün için al, sat veya tut tavsiyeleri üretir.
 
-### C. Backtest
-```bash
-python run_backtest.py
-```
-`reports/` klasöründe HTML rapor oluşturulur.
+- **Komut:** `python daily_run.py`
+- **Ne Yapar?** 
+  - Güncel verileri çeker.
+  - Sektörel stratejileri çalıştırır.
+  - Macro Gate (Piyasa Güvenliği) kontrolü yapar.
+  - Sonuçları ekrana yazar ve bir CSV raporu oluşturur.
+- **Ne Zaman Çalıştırılmalı?** 
+  - **Piyasa Kapandıktan Sonra (18:15+)**: Ertesi gün için plan yapmak amacıyla.
+  - **Piyasa Açılmadan Önce (09:00 - 09:55)**: Son kontroller için.
 
----
+### B. Paper Trading (Simülasyon)
+Sistemi gerçek para riske etmeden test etmek için iki farklı mod bulunur.
 
-## 4. Paper Trading (Simülasyon)
+#### 1. Stateless (Durumsuz) Mod (`run_paper.py`)
+Anlık sinyal kalitesini test eder. Geçmiş pozisyonları hatırlamaz, sadece "o anki" sinyalin doğruluğuna ve sistemin engelleme yapıp yapmadığına bakar.
 
-### Stateless Paper Trading
-```bash
-python run_paper.py
-```
-- Shadow execution (gerçek emir yok)
-- Slippage simülasyonu
-- Macro Gate blokaj takibi
+- **Komut:** `python run_paper.py`
+- **Kullanım Amacı:** Stratejinin o an sinyal üretip üretmediğini, slippage (fiyat kayması) hesaplarını ve Macro Gate engellerini hızlıca kontrol etmek için.
 
-### Position-Aware Paper Trading
-```bash
-python paper_trading_position_aware/position_runner.py
-```
-- Pozisyon belleği (açık/kapalı takibi)
-- Overtrading koruması
-- Exposure limitleri
+#### 2. Position-Aware (Pozisyon Takipli) Mod (`position_runner.py`)
+Gerçek bir portföy yönetir gibi çalışır. Kasanızdaki nakiti, açık pozisyonlarınızı ve kar/zarar durumunuzu takip eder.
 
-### Analiz Araçları
-```bash
-# Temel rapor
-python analyze_paper.py
+- **Komut:** `python paper_trading_position_aware/position_runner.py`
+- **Ek Özellikler:**
+  - `OPEN_POSITION`: Yeni hisse alır.
+  - `CLOSE_POSITION`: Mevcut hisseyi satar.
+  - `SCALE_IN/OUT`: Pozisyonu büyütür veya küçültür.
+  - `HOLD`: Pozisyonu korur.
+- **Ne Zaman Çalıştırılmalı?** Her işlem günü **bir kez**, tercihen piyasa kapanışından sonra (18:15+) çalıştırılmalıdır.
 
-# Stress test (En kötü 20 gün)
-python analyze_paper.py --stress
+### C. Modelleri Eğitmek (`train_models.py`)
+Yapay zeka modellerini (Random Forest ve LSTM) güncel verilerle yeniden eğitir.
 
-# Tam analiz (MAE/MFE dahil)
-python analyze_paper.py --full
-```
+- **Komut:** `python train_models.py`
+- **Ne Sıklıkla?** Haftada bir veya piyasada büyük bir değişim olduğunda çalıştırılması önerilir.
 
 ---
 
-## 5. Karar Tipleri (Position-Aware)
+## 3. Verilerim Nerede?
 
-| Karar | Açıklama |
-|-------|----------|
-| `OPEN_POSITION` | Yeni pozisyon aç |
-| `HOLD_EXISTING` | Mevcut pozisyonu tut |
-| `SCALE_IN` | Pozisyona ekle |
-| `SCALE_OUT` | Pozisyonun bir kısmını sat |
-| `CLOSE_POSITION` | Pozisyonu tamamen kapat |
-| `IGNORE_SIGNAL` | Sinyali yoksay |
+Sistem ürettiği verileri düzenli bir klasör yapısında saklar. İşte önemli dosyaların yerleri:
 
----
+### 📁 Paper Trading Verileri (Simülasyon)
+Position-Aware modunu kullanırken oluşan tüm portföy verileri burada tutulur.
 
-## 6. Sorun Giderme
+| Veri Tipi | Dosya Yolu | Açıklama |
+|-----------|------------|----------|
+| **Portföy Durumu** | `paper_trading_position_aware/logs/portfolio_state.json` | Anlık nakit, açık hisseler ve maliyetleriniz. (**Bu dosya silinirse portföy sıfırlanır!**) |
+| **Günlük Loglar** | `paper_trading_position_aware/logs/daily/` | Her gün için oluşturulan detaylı işlem kayıtları (JSON). |
+| **Özet Raporlar** | `paper_trading_position_aware/logs/summary/` | Tüm oturumların özet performans tablosu (`all_sessions.csv`). |
 
-| Sorun | Çözüm |
-|-------|-------|
-| "Module not found" | `pip install -r requirements.txt` |
-| Veri hatası | İnternet bağlantısını kontrol edin |
-| Model bulunamadı | `python train_models.py` çalıştırın |
+### 📁 Stateless (Anlık) Test Logları
+`run_paper.py` çalıştırdığınızda oluşan loglar.
 
----
+- **Konum:** `logs/paper_trading/paper_trades_YYYY-MM-DD.json`
 
-## 7. Log Dosyaları
+### 📁 Günlük Sinyal Raporları
+`daily_run.py` ile üretilen al/sat sinyal listeleri.
 
-| Konum | İçerik |
-|-------|--------|
-| `logs/paper_trading/` | Stateless paper trading logları |
-| `paper_trading_position_aware/logs/daily/` | Position-aware günlük loglar |
-| `paper_trading_position_aware/logs/summary/` | Özet CSV |
+- **Konum:** `reports/signals_YYYYMMDD.csv`
+- **Format:** Excel ile açılabilir CSV dosyası. İçeriğe Tarih, Hisse, Sinyal, Güven Oranı ve Stop-Loss seviyeleri dahildir.
 
 ---
 
-**Son Güncelleme:** 2026-02-01 | **Versiyon:** 2.0
+## 4. Sorun Giderme ve İpuçları
+
+> [!TIP]
+> **Portföyü Sıfırlamak İstiyorum:**
+> Position-Aware modunda baştan başlamak isterseniz şu komutu kullanın:
+> `python paper_trading_position_aware/position_runner.py --reset`
+
+| Sorun | Olası Neden | Çözüm |
+|-------|-------------|-------|
+| **"System Halted" hatası** | Piyasa çok riskli (VIX yüksek veya sert düşüş). | Sistem güvenli moddadır, işlem yapılması önerilmez. |
+| **Sinyal Çıkmıyor** | Strateji kriterleri sağlanmıyor olabilir. | `daily_run.py` çıktısında "Wait" veya "Macro Blocked" uyarılarına bakın. |
+| **Veri Hatası** | İnternet bağlantısı kesik olabilir. | Bağlantınızı kontrol edip tekrar deneyin. |
+
+---
+
+**Teknik Destek:** Sorun yaşamaya devam ederseniz `logs/` klasöründeki son dosyaları inceleyerek hatanın kaynağını bulabilirsiniz.

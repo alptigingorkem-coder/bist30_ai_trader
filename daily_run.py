@@ -43,89 +43,93 @@ def get_strategy_for_ticker(ticker):
     # Bilinmeyenler için varsayılan: Holding (Dengeli)
     return HoldingStrategy()
 
-def run_daily_analysis():
-    print(f"\n=== BİST30 AI TRADER - GÜNLÜK ANALİZ ({datetime.now().strftime('%Y-%m-%d')}) ===")
-    print("Sektörel Stratejiler Devrede: Banking, Holding, Industrial, Growth\n")
+
+def get_signal_snapshots(verbose=True):
+    """
+    Generates trading signal snapshots for all tickers.
+    Returns: List of dictionaries (Snapshots).
+    """
+    if verbose:
+        print(f"\n=== BİST30 AI TRADER - GÜNLÜK ANALİZ ({datetime.now().strftime('%Y-%m-%d')}) ===")
+        print("Sektörel Stratejiler Devrede: Banking, Holding, Industrial, Growth\n")
     
     tickers = config.TICKERS
-    results = []
+    snapshots = []
     
     # FIX 23: Performans kontrolü
     should_stop, reason = perf_tracker.should_stop_trading()
     
     if should_stop:
-        print(f"🛑 TİCARET DURDURULDU: {reason}")
-        print(f"Metrikler: {perf_tracker.get_current_metrics()}")
-        return
+        if verbose:
+            print(f"🛑 TİCARET DURDURULDU: {reason}")
+            print(f"Metrikler: {perf_tracker.get_current_metrics()}")
+        return [{'error': 'SYSTEM_HALTED', 'reason': reason}]
 
     # FIX 13: Önce portföy kontrolü
     dd_check = portfolio_mgr.check_drawdown_limit()
     
+    global_size_multiplier = 1.0
+    system_halted = False
+    halt_reason = None
+    
     if dd_check['action'] == 'CLOSE_ALL':
-        print(f"🚨 EMERGENCY: {dd_check['reason']} - TÜM POZİSYONLAR KAPATILDI")
-        return  # Hiç işlem yapma
+        if verbose: print(f"🚨 EMERGENCY: {dd_check['reason']} - TÜM POZİSYONLAR KAPATILDI")
+        system_halted = True
+        halt_reason = dd_check['reason']
+        return [{'error': 'EMERGENCY_CLOSE', 'reason': halt_reason}]
         
     if dd_check['action'] == 'REDUCE_ALL':
-        print(f"⚠️ WARNING: {dd_check['reason']} - POZİSYONLAR KÜÇÜLTÜLDÜ")
-        # Tüm position size'ları yarıya indirilecek (strateji içinde değil, burada simüle edilebilir veya config'e flag eklenebilir)
-        # Pratik çözüm: strategies'e bir flag göndermek veya global bir çarpan tanımlamak.
-        # Şimdilik log basıyoruz, aşağıda size hesaplarken dikkate alacağız.
-        GLOBAL_SIZE_MULTIPLIER = 0.5
-    else:
-        GLOBAL_SIZE_MULTIPLIER = 1.0
+        if verbose: print(f"⚠️ WARNING: {dd_check['reason']} - POZİSYONLAR KÜÇÜLTÜLDÜ")
+        global_size_multiplier = 0.5
 
     # --- MACRO GATE KONTROLÜ ---
-    # Config'den kapatılıp kapatılmadığına bak
+    macro_blocked = False
+    macro_fail_reasons = []
+    
     if getattr(config, 'ENABLE_MACRO_GATE', True):
-        print(">> Macro Gate (Piyasa Güvenliği) kontrol ediliyor...")
+        if verbose: print(">> Macro Gate (Piyasa Güvenliği) kontrol ediliyor...")
         try:
             loader = DataLoader()
             macro_data = loader.fetch_macro_data()
             
-            # Macro veri boşsa veya hata varsa güvenli tarafta kalıp devam edebiliriz veya durabiliriz.
-            # Burada veri varsa kontrol edelim.
             if macro_data is not None and not macro_data.empty:
                 fe = FeatureEngineer(macro_data)
                 macro_status = fe.get_macro_status()
                 
                 check_fail = False
-                fail_reasons = []
                 
                 if macro_status.get('VIX_HIGH', False):
                     check_fail = True
-                    fail_reasons.append("VIX Yüksek")
+                    macro_fail_reasons.append("VIX Yüksek")
                     
                 if macro_status.get('USDTRY_SHOCK', False):
                     check_fail = True
-                    fail_reasons.append("USDTRY Şoku")
+                    macro_fail_reasons.append("USDTRY Şoku")
                     
                 if macro_status.get('GLOBAL_RISK_OFF', False):
                     check_fail = True
-                    fail_reasons.append("Global Risk-Off")
+                    macro_fail_reasons.append("Global Risk-Off")
                 
                 if check_fail:
-                    print("\n" + "!"*60)
-                    print("⚠️  MACRO GATE KAPALI - İŞLEMLER DURDURULDU")
-                    print(f"    Tespit Edilen Riskler: {', '.join(fail_reasons)}")
-                    print(f"    Detaylı Durum: {macro_status}")
-                    print("!"*60 + "\n")
-                    return # İŞLEM YAPMA, ÇIK
+                    macro_blocked = True
+                    if verbose:
+                        print("\n" + "!"*60)
+                        print("⚠️  MACRO GATE KAPALI - İŞLEMLER DURDURULDU")
+                        print(f"    Tespit Edilen Riskler: {', '.join(macro_fail_reasons)}")
+                        print(f"    Detaylı Durum: {macro_status}")
+                        print("!"*60 + "\n")
                 else:
-                    print(f"   [ONAY] Macro Gate Açık (Piyasa Normal).")
+                    if verbose: print(f"   [ONAY] Macro Gate Açık (Piyasa Normal).")
             else:
-                print("   [UYARI] Macro veri çekilemedi, varsayılan olarak devam ediliyor.")
+                if verbose: print("   [UYARI] Macro veri çekilemedi, varsayılan olarak devam ediliyor.")
                 
         except Exception as e:
-            print(f"   [HATA] Macro Gate kontrolü sırasında hata: {e}")
-            print("   Güvenlik nedeniyle devam ediliyor (Fail-Open) veya durdurulabilir.")
+            if verbose: print(f"   [HATA] Macro Gate kontrolü sırasında hata: {e}")
             pass
     else:
-        print(">> Macro Gate devre dışı (Config: ENABLE_MACRO_GATE=False).")
-    # ---------------------------
+        if verbose: print(">> Macro Gate devre dışı (Config: ENABLE_MACRO_GATE=False).")
     
-    # Strateji nesnelerini bir kez oluşturup cacheleyelim (Model yükleme maliyetinden kaçınmak için)
-    # Ancak her ticker için 'run' metodu temiz çalışmalı. 
-    # BaseStrategy state tutmaz (results haric), güvenli.
+    # Macro blocked ise boş dönme, snapshotlarda blocked işaretle.
     
     strategies = {
         'BANKING': BankingStrategy(),
@@ -135,7 +139,7 @@ def run_daily_analysis():
     }
     
     for ticker in tickers:
-        print(f">> {ticker} analiz ediliyor...", end=" ")
+        if verbose: print(f">> {ticker} analiz ediliyor...", end=" ")
         
         # Sektör bul
         sector = "HOLDING" # Default
@@ -145,57 +149,99 @@ def run_daily_analysis():
                 break
         
         strategy = strategies.get(sector)
+        snapshot = {
+            'ticker': ticker,
+            'sector': sector,
+            'timestamp': datetime.now().isoformat(),
+            'macro_blocked': macro_blocked,
+            'macro_reasons': macro_fail_reasons,
+            'global_multiplier': global_size_multiplier
+        }
         
         try:
             result = strategy.run(ticker)
             
             if 'error' in result:
-                print(f"HATA: {result['error']}")
+                if verbose: print(f"HATA: {result['error']}")
+                snapshot['error'] = result['error']
+                snapshots.append(snapshot)
                 continue
                 
-            prediction = result.get('prediction', 0)
-            confidence = result.get('confidence', 0)
-            action = result.get('action', 'WAIT')
-            regime = result.get('regime', 'Unknown')
-            regime = result.get('regime', 'Unknown')
-            size = result.get('size', 0)
+            snapshot.update({
+                'action': result.get('action', 'WAIT'),
+                'confidence': result.get('confidence', 0),
+                'regime': result.get('regime', 'Unknown'),
+                'current_price': result.get('current_price', 0),
+                'stop_loss': result.get('stop_loss', 0),
+                'raw_size': result.get('size', 0)
+            })
             
-            if GLOBAL_SIZE_MULTIPLIER < 1.0 and size > 0:
-                size *= GLOBAL_SIZE_MULTIPLIER
-                print(f"   [DD Protection] Pozisyon küçültüldü: {size/GLOBAL_SIZE_MULTIPLIER:.2f} -> {size:.2f}")
+            size = snapshot['raw_size']
+            
+            if global_size_multiplier < 1.0 and size > 0:
+                size *= global_size_multiplier
+                if verbose: print(f"   [DD Protection] Pozisyon küçültüldü: {size/global_size_multiplier:.2f} -> {size:.2f}")
 
-            # FIX 18: Sektör limiti kontrolü
+            # Sektör limiti kontrolü
             if size > 0:
                 allowed_size = sector_alloc.can_add_position(sector, size)
                 if allowed_size < size:
-                    print(f"  ⚠️ Sektör limiti: {sector} için {size:.1%} -> {allowed_size:.1%}")
+                    if verbose: print(f"  ⚠️ Sektör limiti: {sector} için {size:.1%} -> {allowed_size:.1%}")
                     size = allowed_size
                 
-                # Eğer hala pozisyon varsa, allocation'ı güncelle (commit)
+                # Eğer simülasyon değilse commit etmeli, ama burada sadece hesaplıyoruz.
+                # Paper Trading modunda bu 'update_allocation' çağrısı yapılmalı mı?
+                # Evet, çünkü o günkü allocation durumu önemli.
                 if size > 0:
                     sector_alloc.update_allocation(sector, size)
-
-            print(f"[{sector}] {action} (Güven: %{confidence*100:.1f}, Rejim: {regime})")
             
-            results.append({
-                'Tarih': datetime.now().strftime('%Y-%m-%d'),
-                'Hisse': ticker,
-                'Sektör': sector,
-                'Fiyat': f"{result.get('current_price', 0):.2f}",
-                'Rejim': regime,
-                'Sinyal': action,
-                'Güven': f"%{confidence*100:.1f}",
-                'Pozisyon': f"%{size*100:.0f}",
-                'Stop-Loss': result.get('stop_loss', '-'),
-            })
+            snapshot['size'] = size
+            
+            if verbose: print(f"[{sector}] {snapshot['action']} (Güven: %{snapshot['confidence']*100:.1f}, Rejim: {snapshot['regime']})")
+            
+            snapshots.append(snapshot)
             
         except Exception as e:
-            print(f"CRITICAL ERROR: {e}")
+            if verbose: 
+                print(f"CRITICAL ERROR: {e}")
             import traceback
-            traceback.print_exc()
+            if verbose: traceback.print_exc()
+            snapshot['error'] = str(e)
+            snapshots.append(snapshot)
 
-    if results:
-        df_res = pd.DataFrame(results)
+    return snapshots
+
+def run_daily_analysis():
+    # Wrapper for backward compatibility and console reporting
+    results_list = []
+    snapshots = get_signal_snapshots(verbose=True)
+    
+    # Check for System Halt
+    if snapshots and 'error' in snapshots[0] and snapshots[0].get('error') in ['SYSTEM_HALTED', 'EMERGENCY_CLOSE']:
+        return
+
+    for snap in snapshots:
+        if 'error' in snap: continue
+        
+        # Macro Block override logic for display?
+        # daily_run logic used to return early. 
+        # Here we continue but action might be blocked essentially.
+        # But for Display purposes, we show what the strategy found.
+        
+        results_list.append({
+            'Tarih': datetime.now().strftime('%Y-%m-%d'),
+            'Hisse': snap['ticker'],
+            'Sektör': snap['sector'],
+            'Fiyat': f"{snap.get('current_price', 0):.2f}",
+            'Rejim': snap.get('regime', '-'),
+            'Sinyal': snap.get('action', '-'),
+            'Güven': f"%{snap.get('confidence', 0)*100:.1f}",
+            'Pozisyon': f"%{snap.get('size', 0)*100:.0f}",
+            'Stop-Loss': normalize_stop(snap.get('stop_loss'))
+        })
+
+    if results_list:
+        df_res = pd.DataFrame(results_list)
         print("\n" + "="*80)
         print("GÜNLÜK SİNYAL RAPORU")
         print("="*80)
@@ -204,7 +250,6 @@ def run_daily_analysis():
         
         # CSV Kaydı
         filename = f"reports/signals_{datetime.now().strftime('%Y%m%d')}.csv"
-        # Klasör yoksa oluştur
         import os
         if not os.path.exists("reports"): os.makedirs("reports")
         
@@ -212,6 +257,11 @@ def run_daily_analysis():
         print(f"\nRapor kaydedildi: {filename}")
     else:
         print("\nHiçbir strateji sinyal üretemedi.")
+
+def normalize_stop(val):
+    if val is None: return '-'
+    if isinstance(val, (int, float)): return f"{val:.2f}"
+    return str(val)
 
 if __name__ == "__main__":
     run_daily_analysis()

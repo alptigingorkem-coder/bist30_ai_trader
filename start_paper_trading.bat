@@ -14,13 +14,13 @@ echo.
 :: 2. Gerekli kutuphaneleri kontrol et (Opsiyonel, hiz icin kapali)
 :: pip install -r requirements.txt
 
-:: 3. Gunluk Analiz ve Sinyal Uretimi
-echo [1/2] Gunluk Analiz Calistiriliyor (daily_run.py)...
-python daily_run.py
+:: 3. Gunluk Analiz ve Shadow Trading (Paper Mode)
+echo [1/2] Shadow Trading Motoru Calistiriliyor...
+python run_paper.py
 if %ERRORLEVEL% NEQ 0 (
     color 0C
     echo.
-    echo [HATA] daily_run.py calisirken bir sorun olustu!
+    echo [HATA] run_paper.py calisirken bir sorun olustu!
     pause
     exit /b
 )

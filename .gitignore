@@ -159,6 +159,7 @@ logs/
 
 # Temporary / Archive
 _archive/
+archive/
 tmp/
 
 # OS specific

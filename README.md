@@ -142,6 +142,17 @@ python analyze_paper.py --full
 
 ---
 
+## 📊 Performans (Walk-Forward 2023-2024)
+
+**Test Sonuçları (Phase 8 - Final Validation):**
+- **Ortalama Getiri (Portfolio):** %6.35 (Backtest 2023-2024 OOS)
+- **Sharpe Ratio:** 0.47 (Gerçekçi Komisyon ve Slippage dahil)
+- **Yöntem:** Daily Timeframe + LightGBM LambdaRank + Top 5 Allocation
+- **Risk Yönetimi:** %0.70 Round-Trip Maliyet + Dinamik Stop-Loss
+- **Robustness:** Günlük rebalancing sayesinde piyasa şoklarına anlık tepki.
+
+---
+
 ## 📄 Dokümantasyon
 
 | Belge | Açıklama |

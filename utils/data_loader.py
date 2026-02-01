@@ -58,7 +58,7 @@ class DataLoader:
         # Boş satırları temizle
         weekly_data = weekly_data.dropna(how='all')
         
-        print(f"  Günlük: {len(data)} satır → Haftalık: {len(weekly_data)} satır")
+        print(f"  Günlük: {len(data)} satır -> Haftalık: {len(weekly_data)} satır")
         return weekly_data
 
     def fetch_macro_data(self):

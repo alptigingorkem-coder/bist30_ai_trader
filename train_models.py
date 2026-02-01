@@ -7,100 +7,108 @@ import joblib
 # Konfigürasyonlar
 import config
 from configs import banking as config_banking
-from configs import holding as config_holding
-from configs import industrial as config_industrial
-from configs import growth as config_growth
 
 # Araçlar
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
-from models.regime_detection import RegimeDetector
-from models.beta_model import BetaModel
-from models.alpha_model import AlphaModel
+from models.ranking_model import RankingModel
 
 def ensure_model_dir():
     if not os.path.exists("models/saved"):
         os.makedirs("models/saved")
 
-def train_sector_models(sector_name, sector_config, tickers):
+def train_global_ranker():
     print(f"\n{'='*50}")
-    print(f"EĞİTİM BAŞLIYOR: {sector_name}")
-    print(f"Hisseler: {tickers}")
-    print(f"Strict Mode: Veri kesim tarihi {config.TRAIN_END_DATE} (Geleceği görme engellendi)")
+    print(f"EĞİTİM BAŞLIYOR: GLOBAL DAILY RANKER")
+    print(f"Timeframe: {config.TIMEFRAME}")
+    print(f"Strict Mode: Veri kesim tarihi {config.TRAIN_END_DATE}")
     print(f"{'='*50}")
 
-    # Tüm sektör verisini topla (Tek bir büyük DataFrame eğitim için daha iyi olabilir 
-    # veya her hisse için ayrı ayrı eğitip ortalama model kullanabiliriz.
-    # LightGBM genelleştirme yeteneği yüksektir, tüm sektör datası havuz yapılabilir.)
-    
     all_data_frames = []
+    loader = DataLoader(start_date=config.START_DATE)
     
-    loader = DataLoader(start_date=config.START_DATE) # 2015'ten başlasın
+    # Tüm Tickerlar (config.TICKERS - A1 Core)
+    tickers = config.TICKERS
     
     for ticker in tickers:
-        print(f"  Veri indiriliyor: {ticker}...")
+        print(f"  Veri İşleniyor: {ticker}...")
         raw_data = loader.get_combined_data(ticker)
         
         if raw_data is None or len(raw_data) < 100:
             print(f"  [UYARI] Yetersiz veri: {ticker}")
             continue
             
-        # Feature Engineering
+        # Feature Engineering (Daily Logic will apply due to config change)
         fe = FeatureEngineer(raw_data)
         features_df = fe.process_all(ticker=ticker)
         
-        # Regime Detection
-        rd = RegimeDetector(features_df)
-        features_df = rd.detect_regimes()
+        # Add Ticker Column (Multi-Index için gerekli olabilir ama RankingModel level='Date' kullanıyor)
+        features_df['Ticker'] = ticker
         
-        # Hisseleri Index'te tut veya column olarak ekle (Panel Data mantığı için)
-        # STRICT SPLIT FILTERING
+        # Validation Split (Tarihsel)
         if hasattr(config, 'TRAIN_END_DATE') and config.TRAIN_END_DATE:
-            # Sadece eğitim tarihinden öncekileri al
             mask = features_df.index < config.TRAIN_END_DATE
-            train_df = features_df[mask]
-            print(f"  > Filtre: {len(features_df)} -> {len(train_df)} satır (Cutoff: {config.TRAIN_END_DATE})")
-            features_df = train_df
+            features_df = features_df[mask]
         
         all_data_frames.append(features_df)
         
     if not all_data_frames:
-        print(f"❌ {sector_name} için hiç veri bulunamadı.")
+        print(f"❌ Hiç veri bulunamadı.")
         return
         
-    full_sector_data = pd.concat(all_data_frames)
-    print(f"  Toplam Eğitim Verisi: {len(full_sector_data)} satır.")
+    # Combine All
+    print("  Veriler birleştiriliyor...")
+    full_data = pd.concat(all_data_frames)
+    
+    # Multi-Index (Date, Ticker) set et
+    full_data.reset_index(inplace=True)
+    full_data.set_index(['Date', 'Ticker'], inplace=True)
+    full_data.sort_index(inplace=True) 
+    
+    print(f"  Toplam Eğitim Verisi: {len(full_data)} satır.")
     
     ensure_model_dir()
     
-    # --- BETA MODEL EĞİTİMİ ---
-    print(f"  > Beta Model Eğitiliyor...")
-    beta_model = BetaModel(full_sector_data, sector_config)
-    beta_model.optimize_and_train(n_trials=50) # Robust optimization
-    beta_model.save(f"models/saved/{sector_name.lower()}_beta.pkl")
+    # --- RANKING MODEL EĞİTİMİ ---
+    print(f"  > Ranking Model Eğitiliyor...")
     
-    # --- ALPHA MODEL EĞİTİMİ ---
-    print(f"  > Alpha Model Eğitiliyor...")
-    alpha_model = AlphaModel(full_sector_data, sector_config)
-    alpha_model.optimize_and_train(n_trials=50)
-    alpha_model.save(f"models/saved/{sector_name.lower()}_alpha.pkl")
+    # Config modülü olarak banking veriyoruz (Generic bir config yeterli)
+    model = RankingModel(full_data, config_banking) 
     
-    print(f"✅ {sector_name} Eğitimi Tamamlandı.")
+    # Train-Validation Split (Son %10 validation)
+    # Time-based split manually
+    dates = full_data.index.get_level_values('Date').unique()
+    split_idx = int(len(dates) * 0.9)
+    test_start_date = dates[split_idx]
+    
+    print(f"  > Validasyon Başlangıç: {test_start_date}")
+    
+    # Split
+    # Not: Bu çok basit bir split, RankingModel içinde de yapılabilirdi ama burada kontrol bizde.
+    # RankingModel.prepare_data dropna yapıyor, o yüzden önce split edip sonra modele vermek daha güvenli.
+    
+    # Ancak RankingModel training ve validation df'ini ayrı ayrı alacak
+    # O yüzden basitçe model.train e full data verip, içerde bölmesini veya
+    # direkt ayrı df vermeyi tercih edelim.
+    # RankingModel.train(valid_df=...) parametresi eklemiştik.
+    
+    # Dataframe split
+    train_mask = full_data.index.get_level_values('Date') < test_start_date
+    valid_mask = full_data.index.get_level_values('Date') >= test_start_date
+    
+    df_train = full_data[train_mask]
+    df_valid = full_data[valid_mask]
+    
+    # Instantiate with Train
+    ranker = RankingModel(df_train, config_banking)
+    ranker.train(valid_df=df_valid)
+    
+    ranker.save(f"models/saved/global_ranker.pkl")
+    
+    print(f"✅ Global Ranker Eğitimi Tamamlandı.")
 
 def main():
-    # 1. Banking
-    train_sector_models("BANKING", config_banking, config_banking.TICKERS)
-    
-    # 2. Holding
-    train_sector_models("HOLDING", config_holding, config_holding.TICKERS)
-    
-    # 3. Industrial
-    train_sector_models("INDUSTRIAL", config_industrial, config_industrial.TICKERS)
-    
-    # 4. Growth
-    train_sector_models("GROWTH", config_growth, config_growth.TICKERS)
-    
-    print("\n🎉 TÜM MODELLER EĞİTİLDİ VE KAYDEDİLDİ.")
+    train_global_ranker()
 
 if __name__ == "__main__":
     main()

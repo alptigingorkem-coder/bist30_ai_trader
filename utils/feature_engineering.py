@@ -112,8 +112,27 @@ class FeatureEngineer:
         if 'Volume' in df.columns:
             # On Balance Volume
             df['OBV'] = ta.obv(df['Close'], df['Volume'])
+            # OBV Slope (Trend Teyidi için) 
+            # 5 barlık değişim eğimi
+            if 'OBV' in df.columns:
+                df['OBV_Slope'] = df['OBV'].pct_change(5)
+            
             # Money Flow Index
-            df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'])
+            df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'], length=14)
+            
+            # Chaikin Money Flow (CMF) - Para Giriş/Çıkış
+            # 20 periyotluk CMF
+            df['CMF_20'] = ta.cmf(df['High'], df['Low'], df['Close'], df['Volume'], length=20)
+
+        # Choppiness Index (Trend vs Yatay Ayrımı)
+        # 1-100 arası değer. > 61.8 ise Yatay/Testere, < 38.2 ise Trend
+        try:
+            chop = ta.chop(df['High'], df['Low'], df['Close'], length=14)
+            if chop is not None:
+                df['Choppiness_14'] = chop
+        except Exception as e:
+            # print(f"Choppiness hatası: {e}")
+            pass
 
         # ATR (Average True Range) - Volatilite ve Risk Yönetimi İçin
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=getattr(config, 'ATR_PERIOD', 14))
@@ -162,8 +181,14 @@ class FeatureEngineer:
                  # raise ValueError("Ticker not found in file")
                  pass
             else:
-                # Tarih formatını ayarla ve index yap
+                # Tarih formatını ayarla
                 stock_fund['Date'] = pd.to_datetime(stock_fund['Date'])
+                
+                # FIX: Look-ahead bias önleme
+                # Finansallar dönem sonundan hemen sonra açıklanmaz. 
+                # Türkiye için ortalama 45-60 gün gecikme ekliyoruz.
+                stock_fund['Date'] = stock_fund['Date'] + pd.Timedelta(days=60)
+                
                 stock_fund.set_index('Date', inplace=True)
                 stock_fund.sort_index(inplace=True)
                 

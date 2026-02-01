@@ -26,18 +26,18 @@ class RiskManager:
             
         elif regime == 'Sideways': # Yatay
             self.stop_loss_mult = 2.0
-            self.trailing_stop_mult = 2.5
+            self.trailing_stop_mult = 2.0 # 2.5 -> 2.0 (Daha sıkı takip)
             self.take_profit_mult = 3.0
             
         elif regime == 'Trend_Up': # Ralli
             self.stop_loss_mult = 3.0 
-            self.trailing_stop_mult = 3.5
+            self.trailing_stop_mult = 3.0 # 3.5 -> 3.0 (Kârı erken koru)
             self.take_profit_mult = 999.0 # Kar Al Devre Dışı
         
         else:
             # Bilinmeyen rejim fallback (Sideways varsay)
              self.stop_loss_mult = 2.0
-             self.trailing_stop_mult = 2.5
+             self.trailing_stop_mult = 2.0
              self.take_profit_mult = 3.0
 
     def check_exit_conditions(self, current_price, entry_price, peak_price, atr, days_held):
@@ -59,8 +59,13 @@ class RiskManager:
             return 'SELL', 'STOP_LOSS'
 
         # 2. Trailing Stop (İzleyen Stop)
-        if self.trailing_active and current_price > entry_price:
+        # FIX: Remove "current_price > entry_price" check to allow trailing stop to minimize loss 
+        # even if not in net profit yet (e.g. recovery from -5% to -1% then drop)
+        if self.trailing_active: 
             trailing_stop_price = peak_price - (current_atr * self.trailing_stop_mult)
+            # Trailing stop asla Entry Stop'un altında başlamaz kuralı eklenebilir ama 
+            # şimdilik saf matematiksel kalsın.
+            
             if current_price < trailing_stop_price:
                 return 'SELL', 'TRAILING_STOP'
 

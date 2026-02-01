@@ -12,8 +12,8 @@ class RegimeDetector:
             self.use_adaptive = use_adaptive
         self.thresholds = thresholds if thresholds else config.REGIME_THRESHOLDS
         
-        if self.use_adaptive:
-            self.thresholds = self.calculate_adaptive_thresholds()
+        # if self.use_adaptive:
+        #    self.thresholds = self.calculate_adaptive_thresholds()
             
     def calculate_adaptive_thresholds(self):
         """
@@ -106,8 +106,24 @@ class RegimeDetector:
         annual_volatility = df['Volatility_20'] * np.sqrt(scale_factor)
         
         # Parametreleri al (Varsayılanlar veya Config)
-        vol_high = self.thresholds.get('volatility_high', config.REGIME_THRESHOLDS['volatility_high'])
-        vol_low = self.thresholds.get('volatility_low', config.REGIME_THRESHOLDS['volatility_low'])
+        default_high = config.REGIME_THRESHOLDS['volatility_high']
+        default_low = config.REGIME_THRESHOLDS['volatility_low']
+        
+        if self.use_adaptive:
+            # FIX: Global quantile yerine Expanding Window kullanarak leakage önle
+            # Min 1 yıl (252 gün / 52 hafta) veri olsun, yoksa default kullan
+            min_per = scale_factor 
+            
+            # Pandas expanding quantile (Bazen yavaştır ama doğru yöntem budur)
+            # Alternatif: Rolling 3-5 yıl
+            vol_low = annual_volatility.expanding(min_periods=min_per).quantile(0.25).fillna(default_low)
+            vol_high = annual_volatility.expanding(min_periods=min_per).quantile(0.75).fillna(default_high)
+            
+            if verbose: print(f"  [Adaptive] Eşikler Expanding Window ile hesaplandı (Leakage-Free).")
+            
+        else:
+            vol_high = self.thresholds.get('volatility_high', default_high)
+            vol_low = self.thresholds.get('volatility_low', default_low)
         # try_high ve usd_change_5d artık kullanılmıyor (Macro Gate'e taşındı)
         mom_thresh = self.thresholds.get('momentum_threshold', 55) # Varsayılan RSI > 55
         min_days = int(self.thresholds.get('min_regime_days', 3)) # Rejim kalıcı olmalı

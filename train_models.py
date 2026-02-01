@@ -26,6 +26,7 @@ def train_sector_models(sector_name, sector_config, tickers):
     print(f"\n{'='*50}")
     print(f"EĞİTİM BAŞLIYOR: {sector_name}")
     print(f"Hisseler: {tickers}")
+    print(f"Strict Mode: Veri kesim tarihi {config.TRAIN_END_DATE} (Geleceği görme engellendi)")
     print(f"{'='*50}")
 
     # Tüm sektör verisini topla (Tek bir büyük DataFrame eğitim için daha iyi olabilir 
@@ -34,7 +35,7 @@ def train_sector_models(sector_name, sector_config, tickers):
     
     all_data_frames = []
     
-    loader = DataLoader(start_date="2018-01-01") # Eğitim için yeterli geçmiş
+    loader = DataLoader(start_date=config.START_DATE) # 2015'ten başlasın
     
     for ticker in tickers:
         print(f"  Veri indiriliyor: {ticker}...")
@@ -53,7 +54,14 @@ def train_sector_models(sector_name, sector_config, tickers):
         features_df = rd.detect_regimes()
         
         # Hisseleri Index'te tut veya column olarak ekle (Panel Data mantığı için)
-        # Şimdilik basitçe üst üste ekliyoruz, feature'lar normalize olduğu sürece sorun yok.
+        # STRICT SPLIT FILTERING
+        if hasattr(config, 'TRAIN_END_DATE') and config.TRAIN_END_DATE:
+            # Sadece eğitim tarihinden öncekileri al
+            mask = features_df.index < config.TRAIN_END_DATE
+            train_df = features_df[mask]
+            print(f"  > Filtre: {len(features_df)} -> {len(train_df)} satır (Cutoff: {config.TRAIN_END_DATE})")
+            features_df = train_df
+        
         all_data_frames.append(features_df)
         
     if not all_data_frames:

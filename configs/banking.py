@@ -22,26 +22,28 @@ FEATURE_FOCUS = [
 
 # --- REJİM SINIFLANDIRMA EŞİKLERİ ---
 # Bankalar volatilitesi yüksek olduğu için eşikler daha geniştir.
+# --- REJİM SINIFLANDIRMA EŞİKLERİ ---
+# Bankalar volatilitesi yüksek olduğu için eşikler daha geniştir.
 REGIME_THRESHOLDS = {
-    "volatility_low": 0.22,      # Düşük volatilite (Yatay/Ralli başlangıcı)
-    "volatility_high": 0.55,     # Yüksek volatilite (Kriz/Panik)
+    "volatility_low": 0.20,      # 0.22 -> 0.20
+    "volatility_high": 0.50,     # 0.55 -> 0.50 (Daha erken Crash tespiti)
     "try_change_high": 0.008,    # Kur şoku eşiği (Haftalık %0.8 üzeri kritik)
-    "min_regime_days": 4         # Rejim değişimi için gereken minimum gün sayısı
+    "min_regime_days": 3         # 4 -> 3 (Rejim değişimine daha hızlı tepki)
 }
 
 # --- MODEL AĞIRLIKLARI (HİBRİT YAPI) ---
 # Trend zamanlarında Beta (Piyasa Takibi) baskın.
 # Yatay piyasada Alpha (Hisse Seçimi) devreye girer.
 BETA_ALPHA_RATIO = {
-    'beta': 0.85,  # %85 Ana Model (Trend Takibi)
-    'alpha': 0.15  # %15 Yan Model (Ayrışma)
+    'beta': 0.75,  # 0.85 -> 0.75 (Hisse seçiminin etkisi artırıldı)
+    'alpha': 0.25  # 0.15 -> 0.25
 }
 
 # --- RİSK YÖNETİMİ ---
 MIN_RETURN_THRESHOLD = 0.008  # Haftalık %0.8 altı getiri tahminine işlem açma (Komisyon + Slippage)
-KELLY_FRACTION = 0.6          # Tam Kelly çok riskli, %60'ı kullanılır.
-STOP_LOSS_ATR = 1.5           # Sıkı Stop-Loss
-TAKE_PROFIT_ATR = 3.0         # Geniş Kar Al
+KELLY_FRACTION = 0.5          # 0.6 -> 0.5 (Risk azaltıldı)
+STOP_LOSS_ATR = 1.4           # 1.5 -> 1.4 (Çok sıkı Stop-Loss)
+TAKE_PROFIT_ATR = 2.8         # 3.0 -> 2.8 (Karı daha güvenli al)
 
 # Loglama için önek
 LOG_PREFIX = "[BANKING_STRATEGY]"

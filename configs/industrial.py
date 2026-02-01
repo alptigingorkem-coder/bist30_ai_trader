@@ -20,26 +20,26 @@ FEATURE_FOCUS = [
 ]
 
 # --- REJİM SINIFLANDIRMA EŞİKLERİ ---
-# Emtia döngüleri uzun sürer, volatilite toleransı daha yüksektir.
+# Emtia döngüleri sert olabilir, volatility tolerance düşürüldü (FIX: TUPRS Crash tespiti için)
 REGIME_THRESHOLDS = {
-    "volatility_low": 0.28,      # Düşük volatilite
-    "volatility_high": 0.65,     # Yüksek volatilite (Çok yüksek olmadıkça trend bozulmaz)
-    "try_change_high": 0.015,    # Kur şoklarına dayanıklılıkları yüksektir
-    "min_regime_days": 6         # Trend değişim onayı için 6 gün
+    "volatility_low": 0.25,      # 0.28 -> 0.25
+    "volatility_high": 0.55,     # 0.65 -> 0.55 (Daha çabuk Crash/Bear moduna geçsin)
+    "try_change_high": 0.015,
+    "min_regime_days": 3         # 6 -> 3 (Trend değişimine daha hızlı tepki)
 }
 
 # --- MODEL AĞIRLIKLARI (HİBRİT YAPI) ---
 # Alpha (Ayrışma) Modeli daha baskın. Endeks düşse bile emtia artarsa yükselirler.
 BETA_ALPHA_RATIO = {
-    'beta': 0.40,  # %40 Piyasa Takibi
-    'alpha': 0.60  # %60 Spesifik Hikaye (Emtia/İhracat)
+    'beta': 0.30,  # %30 Piyasa (Beta azaltıldı)
+    'alpha': 0.70  # %70 Spesifik Hikaye (Emtia/İhracat arttırıldı)
 }
 
 # --- RİSK YÖNETİMİ ---
 MIN_RETURN_THRESHOLD = 0.012  # Haftalık %1.2 altı getiriye işlem açma (Risk primi yüksek)
-KELLY_FRACTION = 0.45         # Orta-Düşük Kelly (Emtia volatilitesi sert olabilir)
-STOP_LOSS_ATR = 2.0           # Standart Stop
-TAKE_PROFIT_ATR = 3.5         # İyi trend yakalarsa tut
+KELLY_FRACTION = 0.45         # Orta-Düşük Kelly
+STOP_LOSS_ATR = 1.8           # 2.0 -> 1.8 (Daha sıkı stop)
+TAKE_PROFIT_ATR = 3.0         # 3.5 -> 3.0 (Karı daha erken al)
 
 # Özel Risk Kuralları Eşikleri
 COMMODITY_VOLATILITY_CAP = 0.05 # Haftalık emtia değişim volatilitesi bu değeri aşarsa riskli

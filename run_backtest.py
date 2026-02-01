@@ -4,6 +4,7 @@ import numpy as np
 import os
 import joblib
 import config
+import argparse
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
 from models.regime_detection import RegimeDetector
@@ -52,9 +53,11 @@ def get_vectorized_macro_gate(df, thresholds):
     # Shift işlemi ilk satırda NaN yaratır, bunları False (Blok yok) yapalım
     return mask.fillna(False)
 
-def run_backtest_for_ticker(ticker, sector_name):
+def run_backtest_for_ticker(ticker, sector_name, mode='oos'):
+    print(f"--- {ticker} ({mode.upper()}) ---")
+    
     # 1. Data Loading
-    loader = DataLoader(start_date="2018-01-01") # Matching training period for consistency
+    loader = DataLoader(start_date=config.START_DATE) 
     raw_data = loader.get_combined_data(ticker)
     
     if raw_data is None or len(raw_data) < 100:
@@ -82,6 +85,21 @@ def run_backtest_for_ticker(ticker, sector_name):
     # 4. Regime Detection
     rd = RegimeDetector(df)
     df = rd.detect_regimes(verbose=False)
+    
+    # SPLIT DATA BASED ON MODE
+    if hasattr(config, 'TEST_START_DATE') and config.TEST_START_DATE:
+        if mode == 'oos': # Out of Sample (Test)
+            mask = df.index >= config.TEST_START_DATE
+            df = df[mask]
+            print(f"  > OOS Test Verisi: {len(df)} bar (Başlangıç: {config.TEST_START_DATE})")
+        elif mode == 'is': # In Sample (Train)
+            mask = df.index < config.TEST_START_DATE
+            df = df[mask] 
+            print(f"  > IS Eğitim Verisi: {len(df)} bar (Bitiş: {config.TEST_START_DATE})")
+            
+    if df.empty:
+        print("  ❌ Filtre sonrası veri yok.")
+        return None, None
     
     # 5. Load Models
     beta_path = f"models/saved/{sector_name.lower()}_beta.pkl"
@@ -155,6 +173,10 @@ def run_backtest_for_ticker(ticker, sector_name):
     backtester.generate_html_report(filename=f"reports/report_{ticker}.html", ticker=ticker)
     backtester.save_trade_log(filename=f"reports/backtest_trades_{ticker}.csv")
     
+    # Save daily simulation data for Alpha Concentration Test
+    if hasattr(backtester, 'results'):
+        backtester.results.to_csv(f"reports/daily_series_{ticker}.csv")
+    
     metrics = backtester.calculate_metrics()
     metrics['Ticker'] = ticker
     
@@ -177,7 +199,17 @@ def main():
     all_metrics = []
     all_daily_returns = []
     
-    print(f"Starting Backtest for {len(tickers)} tickers...")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', type=str, default='oos', choices=['oos', 'is'], help='Backtest Mode: oos (Out-of-Sample) or is (In-Sample)')
+    parser.add_argument('--tickers', type=str, default=None, help='Comma separated tickers to test (e.g. GARAN.IS,THYAO.IS)')
+    args = parser.parse_args()
+    
+    # Filter tickers if arg provided
+    if args.tickers:
+        selected_tickers = [t.strip() for t in args.tickers.split(',')]
+        tickers = [t for t in tickers if t in selected_tickers]
+        
+    print(f"Starting {args.mode.upper()} Backtest for {len(tickers)} tickers...")
     
     for ticker in tickers:
         print(f"Testing {ticker}...", end=" ")
@@ -190,7 +222,7 @@ def main():
                 break
                 
         try:
-            metrics, daily_rets = run_backtest_for_ticker(ticker, sector)
+            metrics, daily_rets = run_backtest_for_ticker(ticker, sector, mode=args.mode)
             if metrics:
                 all_metrics.append(metrics)
                 all_daily_returns.append(daily_rets)

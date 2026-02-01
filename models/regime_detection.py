@@ -40,63 +40,47 @@ class RegimeDetector:
 
     def detect_turkey_crisis(self, df, verbose=True):
         """
-        Turkey-specific crisis detection (FIX 1 - Phase 2A).
-        Returns crisis score (0-5+) based on local economic indicators.
-        
-        Score interpretation:
-        0-1: Normal
-        2: Caution (SIDEWAYS)
-        3+: Crisis (CRASH)
+        Turkey-specific crisis detection (Vectorized).
+        Returns a SERIES of crisis scores aligned with the dataframe index.
         """
-        crisis_score = 0
+        crisis_score = pd.Series(0, index=df.index)
         
         # Check 1: Extreme USD/TRY movement (30-day persistent)
         if 'USDTRY_Change' in df.columns:
-            # 30-day change (rolling)
-            usdtry_30d_change = df['USDTRY_Change'].rolling(30, min_periods=5).sum()
-            latest_change = usdtry_30d_change.iloc[-1] if len(usdtry_30d_change) > 0 else 0
+            # 30-day change (rolling sum of logs or simple pct change over window)
+            # Assuming USDTRY_Change is weekly/daily return.
+            # Rolling 30 period sum roughly approximates 30-period return if log returns.
+            # Convert to rolling 4-week return for weekly data
+            window = 4 if getattr(config, 'TIMEFRAME', 'D') == 'W' else 30
+            usd_rolling = df['USDTRY_Change'].rolling(window, min_periods=window).sum()
             
-            if latest_change > 0.10:  # 10% monthly depreciation
-                crisis_score += 2
-                if verbose: print(f"  [Turkey Crisis] USD/TRY 30D: {latest_change:.1%} → +2 points")
-            elif latest_change > 0.05:  # 5% monthly
-                crisis_score += 1
-                if verbose: print(f"  [Turkey Crisis] USD/TRY 30D: {latest_change:.1%} → +1 point")
+            crisis_score += (usd_rolling > 0.10).astype(int) * 2
+            crisis_score += ((usd_rolling > 0.05) & (usd_rolling <= 0.10)).astype(int) * 1
         
-        # Check 2: VIX spike (keep existing VIX logic)
+        # Check 2: VIX spike
         if 'VIX_Risk' in df.columns:
-            latest_vix = df['VIX_Risk'].iloc[-1] if len(df) > 0 else 0
-            if latest_vix > 30.0:
-                crisis_score += 2
-                if verbose: print(f"  [Turkey Crisis] VIX: {latest_vix:.1f} → +2 points")
+            crisis_score += (df['VIX_Risk'] > 30.0).astype(int) * 2
         
         # Check 3: S&P500 momentum (global risk-off)
         if 'SP500_Return' in df.columns:
-            sp500_30d = df['SP500_Return'].rolling(30, min_periods=5).sum()
-            latest_sp500 = sp500_30d.iloc[-1] if len(sp500_30d) > 0 else 0
-            if latest_sp500 < -0.10:  # -10% in 30 days
-                crisis_score += 1
-                if verbose: print(f"  [Turkey Crisis] S&P500 30D: {latest_sp500:.1%} → +1 point")
-        
-        # Check 4: BIST30 collapse (cross-asset stress)
-        if 'Close' in df.columns and len(df) > 30:
-            bist_30d_return = (df['Close'].iloc[-1] / df['Close'].iloc[-30] - 1) if df['Close'].iloc[-30] > 0 else 0
-            if bist_30d_return < -0.10:  # -10% in 30 days
-                crisis_score += 1
-                if verbose: print(f"  [Turkey Crisis] BIST30 30D: {bist_30d_return:.1%} → +1 point")
-        
-        # Check 5: High volatility (existing regime logic compatibility)
+            window = 4 if getattr(config, 'TIMEFRAME', 'D') == 'W' else 30
+            sp500_rolling = df['SP500_Return'].rolling(window, min_periods=window).sum()
+            crisis_score += (sp500_rolling < -0.10).astype(int) * 1
+            
+        # Check 4: BIST30 collapse
+        if 'Close' in df.columns:
+            window = 4 if getattr(config, 'TIMEFRAME', 'D') == 'W' else 30
+            # Rolling pct_change
+            bist_rolling = df['Close'].pct_change(window)
+            crisis_score += (bist_rolling < -0.10).astype(int) * 1
+
+        # Check 5: High volatility
         scale_factor = 52 if getattr(config, 'TIMEFRAME', 'D') == 'W' else 252
-        if 'Volatility_20' in df.columns and len(df) > 0:
-            annual_vol = df['Volatility_20'].iloc[-1] * np.sqrt(scale_factor)
-            vol_high = self.thresholds.get('volatility_high', 0.30)  # 30% annualized
-            if annual_vol > vol_high * 1.5:  # 1.5x crisis threshold
-                crisis_score += 1
-                if verbose: print(f"  [Turkey Crisis] Volatility: {annual_vol:.1%} → +1 point")
-        
-        if verbose and crisis_score > 0:
-            print(f"  [Turkey Crisis] TOTAL SCORE: {crisis_score}")
-        
+        if 'Volatility_20' in df.columns:
+            annual_vol = df['Volatility_20'] * np.sqrt(scale_factor)
+            vol_high = self.thresholds.get('volatility_high', 0.30)
+            crisis_score += (annual_vol > vol_high * 1.5).astype(int) * 1
+            
         return crisis_score
     
     def detect_regimes(self, verbose=True):

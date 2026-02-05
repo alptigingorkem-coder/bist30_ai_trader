@@ -18,6 +18,7 @@ from paper_trading.portfolio_state import PortfolioState
 from paper_trading.position_engine import PositionEngine
 from paper_trading.position_logger import PositionLogger
 from core.risk_manager import RiskManager
+from paper_trading.strategy_health import check_strategy_health
 
 
 def load_production_model():
@@ -78,7 +79,21 @@ def run_position_aware_session(verbose: bool = True):
     print(f"\n⏳ Loading production model...")
     model = load_production_model()
     
-    # 3. Download market data
+    # 3. Strategy health check (kill-switch & position sizing hints)
+    can_trade, health_msg, health_rec = check_strategy_health(portfolio)
+    if verbose:
+        print(f"\n🩺 Strategy Health: {health_msg}")
+        print(f"   Can Live Trade : {health_rec.get('can_live_trade')}")
+        print(f"   Paper Only     : {health_rec.get('paper_only_mode')}")
+        print(f"   Pos Size x     : {health_rec.get('position_size_multiplier')}")
+        print(f"   Conf Threshold : {health_rec.get('confidence_threshold')}")
+
+    # Eğer canlı trade modunda ve strateji izin vermiyorsa, oturumu sonlandır
+    if not can_trade:
+        print("❌ Strategy health blocked trading. Session aborted.")
+        return
+
+    # 4. Download market data
     print(f"⏳ Downloading market data...")
     loader = DataLoader(start_date=config.START_DATE)
     tickers = config.TICKERS
@@ -101,7 +116,7 @@ def run_position_aware_session(verbose: bool = True):
     
     print(f"✅ Processed {len(all_data)} symbols")
     
-    # 4. Predict & Rank
+    # 5. Predict & Rank
     print(f"⏳ Running model predictions...")
     full_df = pd.concat(all_data.values())
     
@@ -113,9 +128,9 @@ def run_position_aware_session(verbose: bool = True):
     latest['Score'] = scores
     latest = latest.sort_values('Score', ascending=False)
     
-    # 5. Calculate Target Weights (Top 5)
+    # 6. Calculate Target Weights (Top 5)
     MAX_POSITIONS = getattr(config, 'PORTFOLIO_SIZE', 5)
-    MIN_CONFIDENCE = 0.55
+    MIN_CONFIDENCE = float(health_rec.get("confidence_threshold", 0.55))
     
     top_picks = latest.head(MAX_POSITIONS)
     
@@ -132,7 +147,7 @@ def run_position_aware_session(verbose: bool = True):
             price = row['Close']
             print(f"   {ticker:<10} | Score: {score:.2f} | Weight: {weight*100:>5.1f}% | Price: {price:.2f}")
     
-    # 6. Execute Trades
+    # 7. Execute Trades
     print(f"\n⚙️ Executing trades...")
     
     stats = {'open': 0, 'scale_in': 0, 'scale_out': 0, 'close': 0, 'hold': 0}
@@ -156,7 +171,7 @@ def run_position_aware_session(verbose: bool = True):
         if verbose and action != 'HOLD':
             print(f"   {action:<12} {ticker:<10} @ {price:.2f}")
     
-    # 7. Close unwanted positions
+    # 8. Close unwanted positions
     print(f"\n🧹 Cleaning up positions...")
     allowed_symbols = top_picks['Ticker'].tolist()
     current_positions = portfolio.get_open_symbols()
@@ -174,10 +189,10 @@ def run_position_aware_session(verbose: bool = True):
             if verbose:
                 print(f"   CLOSE        {symbol:<10} @ {price:.2f}")
     
-    # 8. Save state
+    # 9. Save state
     portfolio.save()
     
-    # 9. Summary
+    # 10. Summary
     final_value = portfolio.total_portfolio_value()
     realized_pnl = portfolio.realized_pnl
     

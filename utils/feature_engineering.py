@@ -246,8 +246,8 @@ class FeatureEngineer:
             start_date = config.START_DATE
             end_date = datetime.now().strftime('%Y-%m-%d')
             
-            # stock_fund = feature_store.load_fundamentals(tickers=[ticker])
-            stock_fund = feature_store.get_augmented_fundamentals(tickers=[ticker], start_date=start_date, end_date=end_date)
+            # FIX: Sentetik veri kodu kaldırıldı, direkt load_fundamentals kullan
+            stock_fund = feature_store.load_fundamentals(tickers=[ticker], start_date=start_date, end_date=end_date)
             
             if stock_fund.empty:
                  # raise ValueError("Ticker not found in file")
@@ -351,6 +351,33 @@ class FeatureEngineer:
         # DİĞER TÜM MAKRO FEATURELAR KALDIRILDI (Macro Gate Mimarisi)
         # VIX, SP500, GOLD, OIL artık model girdisi değil.
             
+        self.data = df
+        return df
+
+    def add_kap_features(self, ticker):
+        """
+        KAP (Kamuyu Aydınlatma Platformu) bildirimlerinden feature üretir.
+        - days_since_disclosure: Son bildirimden bu yana gün
+        - disclosure_count_30d: Son 30 günde bildirim sayısı
+        - has_recent_disclosure: Son 7 günde bildirim var mı?
+        """
+        df = self.data
+        
+        # Default değerler (PyKap yoksa veya veri çekilemezse)
+        df['days_since_disclosure'] = 999
+        df['disclosure_count_30d'] = 0
+        df['has_recent_disclosure'] = 0
+        
+        try:
+            from utils.kap_data_fetcher import kap_fetcher
+            
+            # KAP feature'ları ekle
+            df = kap_fetcher.create_event_features(ticker, df)
+            print(f"  [KAP] {ticker} için KAP feature'ları eklendi.")
+            
+        except Exception as e:
+            print(f"  [KAP] {ticker} için feature ekleme hatası: {e}")
+        
         self.data = df
         return df
 
@@ -617,6 +644,9 @@ class FeatureEngineer:
             self.add_fundamental_features_from_file(ticker)
             # YENİ: Sektör Dummies
             self.add_sector_dummies(ticker)
+            # YENİ: KAP Bildirimleri Feature'ları
+            if getattr(config, 'ENABLE_KAP_FEATURES', True):
+                self.add_kap_features(ticker)
         
         self.add_time_features()
         self.add_derived_features()

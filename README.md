@@ -154,15 +154,15 @@ python analyze_paper.py --full
 
 ## 📊 Performans (Walk-Forward 2025 OOS)
 
-**Test Sonuçları (Gerçek Veri - No Synthetic):**
+**Test Sonuçları (Gerçek Veri - OOS 2025):**
 - **Dönem:** 01.01.2025 - 05.02.2026
-- **Ortalama Getiri (Portfolio):** %13.22 
-- **Benchmark (XU100):** %40.23
-- **Sharpe Ratio:** 0.43
-- **Yöntem:** Daily Timeframe + LightGBM LambdaRank + Top 5 RiskParity
-- **Risk Yönetimi:** Agresif Stop-Loss (%10 Max Loss)
-- **Robustness:** Sentetik veri kapatılarak sadece gerçek piyasa verileriyle test edilmiştir.
-- **Not:** Sektör bazlı optimizasyon (Automotive, Energy vb.) ile performans artışı hedeflenmektedir (v2.2+).
+- **Ortalama Getiri (Portfolio):** ~-2.46% (Tahmini)
+- **Benchmark (XU100):** %39.38
+- **Alpha (Excess):** -%41.84
+- **Beta:** 1.11
+- **Sharpe Ratio:** Negatif
+- **Yöntem:** Daily Timeframe + Ensemble (LightGBM + CatBoost) + RiskParity
+- **Not:** KAP verisi entegrasyonu geçici olarak devre dışı bırakılmıştır. Model performansı bu eksiklikten etkilenmiş olabilir. Hedeflenen Alpha üretimi bu dönemde sağlanamamıştır.
 
 ---
 

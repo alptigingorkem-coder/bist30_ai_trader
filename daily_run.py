@@ -122,28 +122,69 @@ def run_daily_trader():
     print(f"\n\033[1;33m⚠️ ODAK LİSTESİ BELİRLENDİ ({len(focus_list)} Hisse)")
     print("Sistemin doğru çalışması için bu hisselerin CANLI fiyatlarını girmelisiniz.\033[0m")
     
-    # 4. LIVE PRICE INJECTION (Kullanıcı Girişi)
-    live_prices = {}
-    print("-" * 50)
+    # 4. LIVE PRICE INJECTION (Otomatik + Fallback Manual)
+    print("⏳ [3/5] Canlı veriler çekiliyor (Otomatik)...")
+    from core.live_data_engine import live_engine, DataUnavailabilityError
     
-    for ticker in focus_list:
-        # Mevcut (gecikmeli) fiyatı referans göster
-        delayed_price = raw_data.loc[raw_data.index[-1], ('Close', ticker)]
+    live_prices = {}
+    
+    # Otomatik Veri Çekme Denemesi
+    try:
+        # Sadece odak listesindeki hisseler için canlı veri iste
+        live_data_dict, source = live_engine.fetch_live_data(focus_list)
+        print(f"✅ Canlı veriler başarıyla alındı! Kaynak: {source}")
         
-        while True:
-            try:
-                user_input = input(f"📊 {ticker:<10} (Ref: {delayed_price:.2f}) 👉 Canlı: ")
-                
-                if user_input.strip() == "":
-                    # Boş geçilirse gecikmeli veriyi kabul et
-                    live_prices[ticker] = delayed_price
-                    print(f"   -> Gecikmeli veri kullanıldı: {delayed_price:.2f}")
+        for ticker in focus_list:
+            if ticker in live_data_dict:
+                df_ticker = live_data_dict[ticker]
+                if not df_ticker.empty:
+                    # Son fiyatı al
+                    last_price = df_ticker['Close'].iloc[-1]
+                    live_prices[ticker] = float(last_price)
+                    print(f"   🔹 {ticker:<10}: {last_price:.2f}")
                 else:
-                    price = float(user_input.replace(',', '.'))
-                    live_prices[ticker] = price
-                break
-            except ValueError:
-                print("❌ Hata: Sayısal değer girin (Örn: 305.5)")
+                    print(f"   🔸 {ticker:<10}: Veri yok (Manuel giriş gerekli)")
+            else:
+                print(f"   🔸 {ticker:<10}: Veri bulunamadı")
+
+    except Exception as e:
+        print(f"⚠️ Otomatik veri çekme hatası: {e}")
+        print("   Manuel moda geçiliyor...")
+
+    # Eksik Hisseler İçin Manuel Giriş (Fallback)
+    missing_tickers = [t for t in focus_list if t not in live_prices]
+    
+    if missing_tickers:
+        print("\n" + "-" * 50)
+        print("⚠️ Aşağıdaki hisseler için canlı veri alınamadı.")
+        print("Lütfen manuel giriş yapınız (veya boş bırakıp gecikmeli veriyi kullanınız).")
+        print("-" * 50)
+        
+        for ticker in missing_tickers:
+            # Mevcut (gecikmeli) fiyatı referans göster
+            try:
+                delayed_price = raw_data.loc[raw_data.index[-1], ('Close', ticker)]
+            except:
+                delayed_price = 0.0
+            
+            while True:
+                try:
+                    user_input = input(f"📊 {ticker:<10} (Ref: {delayed_price:.2f}) 👉 Canlı: ")
+                    
+                    if user_input.strip() == "":
+                        # Boş geçilirse gecikmeli veriyi kullan (varsa)
+                        if delayed_price > 0:
+                            live_prices[ticker] = delayed_price
+                            print(f"   -> Gecikmeli veri kullanıldı: {delayed_price:.2f}")
+                        else:
+                            print("   ❌ Geçerli bir fiyat girmelisiniz!")
+                            continue
+                    else:
+                        price = float(user_input.replace(',', '.'))
+                        live_prices[ticker] = price
+                    break
+                except ValueError:
+                    print("❌ Hata: Sayısal değer girin (Örn: 305.5)")
 
     print("-" * 50)
     print("⏳ [3/5] Veriler güncelleniyor ve indikatörler yeniden hesaplanıyor...")

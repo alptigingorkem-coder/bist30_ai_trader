@@ -10,7 +10,7 @@ Her dosya `YYYY-MM-DD.md` formatında adlandırılır.
 
 | Tarih | Özet |
 | :--- | :--- |
-| [2026-02-05](2026-02-05.md) | Dynamic Backtest Debugging & Fixes (Index, Empty Data, Shape, Pandas) |
+| [2026-02-05](2026-02-05.md) | Dynamic Backtest Fixes + KOZAL Solved (Fallback) + KAP Entegrasyonu + Sentetik Veri Temizliği |
 | [2026-02-03](2026-02-03.md) | Trade Ledger, Confidence Analizi, Live Stress, Live Trading |
 
 ## Şablon

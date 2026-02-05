@@ -3,6 +3,25 @@
 Bu dosya, BIST30 AI Trader projesinde yapılan tüm önemli değişiklikleri içerir.
 Biçim [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) standartlarına dayanmaktadır.
 
+## [3.0.0] - 2026-02-05
+
+### Yeni Özellikler (Otomasyon)
+- **LiveDataEngine Entegrasyonu**
+  - `daily_run.py` artık tam otomatik çalışıyor.
+  - Canlı veri çekilemediğinde "Manuel Fallback" mekanizması devreye giriyor.
+  - `yfinance` ve `DataUnavailabilityError` yönetimi güçlendirildi.
+
+### Değişiklikler
+- **KAP Entegrasyonu:** Backtest performansını artırmak için varsayılan olarak `False` yapıldı.
+- **Sistem Mimarisi:** Manuel müdahale gereksinimi minimuma indirildi. Only trade on execution.
+- **Bağımlılıklar:** `pykap`, `selenium`, `webdriver-manager` requirements.txt'ye eklendi.
+
+### Dokümantasyon
+- Kullanım kılavuzu otomasyon detaylarıyla güncellendi.
+- Sorun giderme rehberine API ve veri hataları eklendi.
+
+---
+
 ## [2.2.0] - 2026-02-05
 
 ### Eklendi

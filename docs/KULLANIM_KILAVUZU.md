@@ -44,7 +44,8 @@ Yapay zeka modellerini çalıştırarak o gün için al, sat veya tut tavsiyeler
 
 - **Komut:** `python daily_run.py`
 - **Ne Yapar?** 
-  - Güncel verileri çeker.
+  - **Otomatik Veri Çekme:** `LiveDataEngine` ile güncel fiyatları otomatik çeker (Manuel veri girişine gerek kalmaz).
+  - **Veri Fallback:** Eğer otomatik çekim başarısız olursa, manuel giriş moduna geçer.
   - **Top 5 Seçimi:** En yüksek potansiyelli 5 hisseyi belirler (Konsantrasyon: Top 5).
   - **Ağırlıklı Tahsisat:** Risk Parity mantığıyla sermaye dağılımı önerir.
   - Macro Gate (Piyasa Güvenliği) kontrolü yapar (Opsiyonel/Devre Dışı).

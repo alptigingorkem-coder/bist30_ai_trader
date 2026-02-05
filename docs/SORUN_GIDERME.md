@@ -43,5 +43,19 @@ PowerShell'i yönetici olarak açın ve şu komutu girin:
 Set-ExecutionPolicy RemoteSigned
 ```
 
+### 6. "LiveDataEngine Error" veya Otomatik Veri Çekilemiyor
+**Sorun:** `daily_run.py` sırasında "DataUnavailabilityError" alınıyor veya sürekli manuel moda düşüyor.
+**Çözüm:**
+- `requirements.txt` içindeki `yfinance` ve `pandas` sürümlerinin güncel olduğundan emin olun.
+- İnternet bağlantısını kontrol edin.
+- Yahoo Finance kısıtlaması olabilir, bir süre bekleyin veya VPN deneyin.
+- Hata devam ederse manuel fiyat girişi yaparak işlemi tamamlayabilirsiniz.
+
+### 7. KAP Veri Hataları (Timeout)
+**Sorun:** Backtest veya veri çekme sırasında KAP modülü takılıyor veya hata veriyor.
+**Çözüm:**
+- `config.py` dosyasında `ENABLE_KAP_FEATURES = False` yaparak KAP özelliğini geçici olarak devre dışı bırakın.
+- `pykap` kütüphanesinin yüklü olduğundan emin olun.
+
 ## Hala Sorun Yaşıyorsanız
 Lütfen hatanın tam metni ve ekran görüntüsü ile birlikte GitHub üzerinden bir "Issue" açın.

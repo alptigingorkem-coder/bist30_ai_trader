@@ -92,7 +92,8 @@ END_DATE = None # Bugüne kadar al
 TRAIN_END_DATE = "2024-12-31" 
 TEST_START_DATE = "2025-01-01" 
 
-
+# KAP (Kamuyu Aydınlatma Platformu) Entegrasyonu
+ENABLE_KAP_FEATURES = False  # KAP bildirim feature'larını modele dahil et (Backtest hızı için kapalı)
 
 
 

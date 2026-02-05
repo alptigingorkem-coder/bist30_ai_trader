@@ -152,14 +152,16 @@ python analyze_paper.py --full
 
 ---
 
-## 📊 Performans (Walk-Forward 2023-2024)
+## 📊 Performans (Walk-Forward 2025 OOS)
 
-**Test Sonuçları (Phase 8 - Final Validation):**
-- **Ortalama Getiri (Portfolio):** %6.35 (Backtest 2023-2024 OOS)
-- **Sharpe Ratio:** 0.47 (Gerçekçi Komisyon ve Slippage dahil)
-- **Yöntem:** Daily Timeframe + LightGBM LambdaRank + Top 5 Allocation
-- **Risk Yönetimi:** %0.70 Round-Trip Maliyet + Dinamik Stop-Loss
-- **Robustness:** Günlük rebalancing sayesinde piyasa şoklarına anlık tepki.
+**Test Sonuçları (Gerçek Veri - No Synthetic):**
+- **Dönem:** 01.01.2025 - 05.02.2026
+- **Ortalama Getiri (Portfolio):** %13.22 
+- **Benchmark (XU100):** %40.23
+- **Sharpe Ratio:** 0.43
+- **Yöntem:** Daily Timeframe + LightGBM LambdaRank + Top 5 RiskParity
+- **Risk Yönetimi:** Agresif Stop-Loss (%10 Max Loss)
+- **Robustness:** Sentetik veri kapatılarak sadece gerçek piyasa verileriyle test edilmiştir.
 - **Not:** Sektör bazlı optimizasyon (Automotive, Energy vb.) ile performans artışı hedeflenmektedir (v2.2+).
 
 ---

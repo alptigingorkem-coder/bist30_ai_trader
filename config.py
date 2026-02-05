@@ -85,12 +85,16 @@ def get_sector(ticker):
 
 
 # --- TARİH VE MAKRO VERİ ---
-START_DATE = "2015-01-01"
+START_DATE = "2015-01-01" # Gerçek veri odaklı başlangıç
 END_DATE = None # Bugüne kadar al
 
 # Overfitting Önleme (Strict Split)
-TRAIN_END_DATE = "2021-01-01" # Genişletilmiş Test Penceresi için
-TEST_START_DATE = "2021-01-01"
+TRAIN_END_DATE = "2024-12-31" 
+TEST_START_DATE = "2025-01-01" 
+
+# Ablation / Sentetik Veri Kontrolü
+ENABLE_SYNTHETIC_DATA = False # Kullanıcı isteği: Sadece gerçek veri
+
 
 
 

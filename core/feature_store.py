@@ -90,13 +90,17 @@ class FeatureStore:
                 # Eksik kısımlar?
                 frames = [ticker_real]
                 
+                import config
+                
                 # Başlangıçta eksik varsa (Backfill with Synthetic)
-                if req_start < real_min:
+                if req_start < real_min and getattr(config, 'ENABLE_SYNTHETIC_DATA', True):
                     print(f"[{ticker}] Generating synthetic history: {req_start.date()} -> {real_min.date()}")
                     syn_df = augmented_generator.generate_synthetic_data(
                         ticker, req_start, real_min - pd.Timedelta(days=1)
                     )
                     frames.append(syn_df)
+                elif req_start < real_min:
+                    print(f"[{ticker}] Synthetic data disabled. Skipping period: {req_start.date()} -> {real_min.date()}")
                     
                 # Bitişte eksik varsa (Genelde olmaz ama)
                 if req_end > real_max:
@@ -109,9 +113,12 @@ class FeatureStore:
                 final_dfs.append(combined)
             else:
                 # Hiç veri yoksa tamamen sentetik
-                print(f"[{ticker}] No real data. Generating FULL synthetic: {req_start.date()} -> {req_end.date()}")
-                syn_df = augmented_generator.generate_synthetic_data(ticker, req_start, req_end)
-                final_dfs.append(syn_df)
+                if getattr(config, 'ENABLE_SYNTHETIC_DATA', True):
+                    print(f"[{ticker}] No real data. Generating FULL synthetic: {req_start.date()} -> {req_end.date()}")
+                    syn_df = augmented_generator.generate_synthetic_data(ticker, req_start, req_end)
+                    final_dfs.append(syn_df)
+                else:
+                    print(f"[{ticker}] No real data and synthetic disabled. Skipping.")
                 
         if final_dfs:
             return pd.concat(final_dfs).reset_index(drop=True)

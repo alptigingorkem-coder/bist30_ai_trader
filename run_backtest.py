@@ -1,31 +1,18 @@
 
-import pandas as pd
-import numpy as np
 import os
-import joblib
-import config
 import argparse
+
+import joblib
+import numpy as np
+import pandas as pd
+
+import config
+from configs import banking as config_banking
+from core.backtesting import Backtester
+from core.macro_gate import vectorized_macro_gate
+from models.ranking_model import RankingModel
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
-from models.ranking_model import RankingModel
-from core.backtesting import Backtester
-from configs import banking as config_banking
-
-def get_vectorized_macro_gate(df, thresholds):
-    """
-    Tarihsel veri üzerinde vektörel Macro Gate maskesi oluşturur.
-    True: Blocked, False: Open
-    """
-    mask = pd.Series(False, index=df.index)
-    if 'VIX' in df.columns:
-        mask |= (df['VIX'].shift(1) > thresholds['VIX_HIGH'])
-    if 'USDTRY' in df.columns:
-        usd_change = df['USDTRY'].pct_change(5).shift(1)
-        mask |= (usd_change > thresholds['USDTRY_CHANGE_5D'])
-    if 'SP500' in df.columns:
-        sp_mom = df['SP500'].pct_change(5).shift(1)
-        mask |= (sp_mom < thresholds['SP500_MOMENTUM'])
-    return mask.fillna(False)
 
 def main():
     if not os.path.exists("reports"):
@@ -101,7 +88,7 @@ def main():
         
         # Macro Gate Mask (Before dropping cols)
         if getattr(config, 'ENABLE_MACRO_GATE', True):
-            gate_mask = get_vectorized_macro_gate(raw, config.MACRO_GATE_THRESHOLDS)
+            gate_mask = vectorized_macro_gate(raw, getattr(config, 'MACRO_GATE_THRESHOLDS', None))
         else:
             gate_mask = pd.Series(False, index=raw.index)
         gate_masks[t] = gate_mask

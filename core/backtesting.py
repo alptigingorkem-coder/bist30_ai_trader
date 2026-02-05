@@ -421,7 +421,7 @@ class Backtester:
         drawdown = (cum_ret - running_max) / running_max
         max_drawdown = drawdown.min()
         
-        # Yeni Metrikler
+        # --- Yeni Metrikler ---
         # Win Rate
         winning_trades = returns[returns > 0].count()
         losing_trades = returns[returns < 0].count()
@@ -443,7 +443,58 @@ class Backtester:
         downside_returns = returns[returns < 0]
         downside_std = downside_returns.std() * np.sqrt(252)
         sortino_ratio = annual_return / downside_std if downside_std > 0 else 0
-        
+
+        # Information Ratio: Portföy vs XU100 (varsa)
+        information_ratio = 0.0
+        omega_ratio = 0.0
+        ulcer_index = 0.0
+        avg_holding_days = 0.0
+
+        # Tracking Error ve Information Ratio
+        if 'XU100_Return' in df.columns:
+            common = returns.index.intersection(df.index)
+            if len(common) > 0:
+                strat = returns.loc[common]
+                bench = df.loc[common, 'XU100_Return']
+                active = strat - bench
+                tracking_error = active.std() * np.sqrt(252)
+                if tracking_error > 0:
+                    information_ratio = (active.mean() * 252) / tracking_error
+
+        # Omega Ratio (0 eşik etrafında getiri dağılımı)
+        gains = returns[returns > 0]
+        losses = -returns[returns < 0]
+        if not losses.empty:
+            omega_ratio = gains.sum() / losses.sum() if losses.sum() > 0 else float('inf')
+
+        # Ulcer Index (Drawdown RMS)
+        if not drawdown.empty:
+            ulcer_index = np.sqrt((drawdown.pow(2)).mean()) * 100.0
+
+        # Ortalama Holding Süresi (gün)
+        if 'Pos_Diff' in df.columns:
+            # Trade log için kullanılan Pos_Diff varsa onu kullan
+            pos = df['Position']
+        else:
+            pos = df['Position']
+
+        if not pos.empty:
+            in_trade = False
+            start_idx = None
+            durations = []
+            for i, (idx, val) in enumerate(pos.items()):
+                if not in_trade and val > 0:
+                    in_trade = True
+                    start_idx = idx
+                elif in_trade and val == 0:
+                    # round-trip tamamlandı
+                    end_idx = idx
+                    durations.append((end_idx - start_idx).days)
+                    in_trade = False
+                    start_idx = None
+            if durations:
+                avg_holding_days = float(np.mean(durations))
+
         metrics = {
             'Total Return': total_return,
             'CAGR': annual_return,              # FIX-A3: Standart yıllık getiri (CAGR)
@@ -455,6 +506,10 @@ class Backtester:
             'Profit Factor': profit_factor,
             'Calmar Ratio': calmar_ratio,
             'Sortino Ratio': sortino_ratio,
+            'Information Ratio': information_ratio,
+            'Omega Ratio': omega_ratio,
+            'Ulcer Index': ulcer_index,
+            'Avg Holding Days': avg_holding_days,
             'Num Trades': num_round_trip_trades
         }
         

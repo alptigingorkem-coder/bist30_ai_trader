@@ -120,6 +120,78 @@ class FeatureEngineer:
         self.data = df
         return df
 
+    def add_custom_indicators(self):
+        """
+        Gelişmiş teknik indikatörleri ekler.
+        - Ichimoku bileşenleri (Tenkan, Kijun, Senkou, Kumo genişliği)
+        - ADX (trend gücü)
+        - Williams %R (aşırı alım/satım)
+        - VWAP (hacim ağırlıklı ortalama fiyat)
+
+        Not:
+        Bu fonksiyon, mevcut `pandas_ta` fonksiyonlarını kullanır ve
+        herhangi bir indikatör başarısız olursa sessizce devam eder.
+        Böylece backtest / eğitim pipeline'ı kırılmaz.
+        """
+        df = self.data
+
+        # Ichimoku Cloud
+        try:
+            ichi = ta.ichimoku(
+                high=df['High'],
+                low=df['Low'],
+                close=df['Close']
+            )
+            # pandas_ta bazı versiyonlarda (df, df_signal) tuple döndürebilir
+            if isinstance(ichi, tuple):
+                ichi_df = ichi[0]
+            else:
+                ichi_df = ichi
+
+            if ichi_df is not None:
+                ichi_df = ichi_df.add_prefix("ICHIMOKU_")
+                df = pd.concat([df, ichi_df], axis=1)
+
+                # Kumo genişliği (bulut kalınlığı)
+                span_a_cols = [c for c in ichi_df.columns if "A" in c]
+                span_b_cols = [c for c in ichi_df.columns if "B" in c]
+                if span_a_cols and span_b_cols:
+                    span_a = ichi_df[span_a_cols[0]]
+                    span_b = ichi_df[span_b_cols[0]]
+                    df["ICHIMOKU_Kumo_Width"] = (span_a - span_b).abs()
+        except Exception:
+            # Ichimoku yoksa veya hata verdiyse devam et
+            pass
+
+        # ADX - Trend gücü
+        try:
+            adx = ta.adx(df['High'], df['Low'], df['Close'])
+            if adx is not None:
+                adx = adx.add_prefix("ADX_")
+                df = pd.concat([df, adx], axis=1)
+        except Exception:
+            pass
+
+        # Williams %R
+        try:
+            willr = ta.willr(df['High'], df['Low'], df['Close'])
+            if willr is not None:
+                df['WilliamsR_14'] = willr
+        except Exception:
+            pass
+
+        # VWAP (gün içi olmayan veride de referans olarak kullanılabilir)
+        try:
+            if 'Volume' in df.columns:
+                vwap = ta.vwap(df['High'], df['Low'], df['Close'], df['Volume'])
+                if vwap is not None:
+                    df['VWAP'] = vwap
+        except Exception:
+            pass
+
+        self.data = df
+        return df
+
     def add_sector_dummies(self, ticker):
         """Sektörel dummy değişkenleri ekler."""
         df = self.data
@@ -633,6 +705,9 @@ class FeatureEngineer:
         self.add_multi_window_targets()
         
         self.add_technical_indicators()
+        # Gelişmiş teknik indikatörler (Ichimoku, ADX, Williams %R, VWAP, vb.)
+        if getattr(config, 'ENABLE_CUSTOM_INDICATORS', True):
+            self.add_custom_indicators()
         
         # Macro Technicals
         if getattr(config, 'ENABLE_MACRO_IN_MODEL', False):

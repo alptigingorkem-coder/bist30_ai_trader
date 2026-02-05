@@ -181,7 +181,7 @@ def main():
         mom_mask = (mom_5 > 0).fillna(True)
         top_n_mask = top_n_mask & mom_mask
     
-    if weight_strategy == 'Equal':
+    if weight_strategy == 'Equal' or weight_strategy == 'EqualWeight':
         # Equal weighting among top N
         # weight = 1/N
         weights_pivot[top_n_mask] = 1.0 / port_size

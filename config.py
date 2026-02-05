@@ -8,13 +8,18 @@ ENABLE_MACRO_IN_MODEL = False  # Noise reduction için kapalı önerilir
 
 TIERS = {
     'TIER_1': [
-        "AKBNK.IS", "ALARK.IS", "ASELS.IS", "ASTOR.IS", "BIMAS.IS", 
-        "EKGYO.IS", "ENKAI.IS", "EREGL.IS", "FROTO.IS", "GARAN.IS", 
-        "GUBRF.IS", "HEKTS.IS", "ISCTR.IS", "KCHOL.IS", "KONTR.IS", 
-        "KOZAL.IS", "KRDMD.IS", "ODAS.IS", "OYAKC.IS", "PETKM.IS", 
-        "PGSUS.IS", "SAHOL.IS", "SASA.IS", "SISE.IS", "TAVHL.IS", 
-        "TCELL.IS", "THYAO.IS", "TOASO.IS", "TSKB.IS", "TTKOM.IS", 
-        "TUPRS.IS", "YKBNK.IS"
+        # Pozitif Alpha Üretenler (2024 OOS Backtest Sonuçlarına Göre)
+        "TSKB.IS",   # +%11 (En İyi)
+        "EREGL.IS",  # +%7.5
+        "ODAS.IS",   # +%5.9
+        "TTKOM.IS",  # +%5.2
+        "AKBNK.IS",  # +%5.1
+        # Potansiyeller (Düşük ama Pozitif)
+        "EKGYO.IS",  # ~%2-3 (Volatil)
+        "SISE.IS",   # ~%2-3
+        "KOZAL.IS",  # Mining Sektör Lideri
+        "SAHOL.IS",  # Holding
+        "YKBNK.IS"   # Banka
     ],
     'TIER_2': [], # Devre dışı
     'TIER_3': []  # Devre dışı
@@ -89,8 +94,9 @@ START_DATE = "2015-01-01" # Gerçek veri odaklı başlangıç
 END_DATE = None # Bugüne kadar al
 
 # Overfitting Önleme (Strict Split)
-TRAIN_END_DATE = "2024-12-31" 
-TEST_START_DATE = "2025-01-01" 
+# Overfitting Önleme (Strict Split)
+TRAIN_END_DATE = "2023-12-31" 
+TEST_START_DATE = "2024-01-01" # Daha uzun bir test dönemi (Ralliyi de görsün) 
 
 # KAP (Kamuyu Aydınlatma Platformu) Entegrasyonu
 ENABLE_KAP_FEATURES = True  # KAP bildirim feature'larını modele dahil et (Backtest hızı için kapalı)
@@ -164,9 +170,10 @@ ATR_PERIOD = 14          # Standart
 # Dinamik Stop/Profit (ATR Çarpanları - Günlük için optimize edilecek, şimdilik safety)
 # Dinamik Stop/Profit (Optimize Edildi - Sıkı Takip)
 # Dinamik Stop/Profit (AGRESİF MOD - Trend Following - RESTORED STRICT)
-ATR_STOP_LOSS_MULTIPLIER = 3.5     # 3.0 -> 3.5 (Biraz daha gevşek SL)
-ATR_TAKE_PROFIT_MULTIPLIER = 10.0  # 7.0 -> 10.0 (Karı uzat - Let run)
-ATR_TRAILING_STOP_MULTIPLIER = 4.0 # 2.5 -> 4.0 (Rallide erken çıkmayı önle) 
+# Dinamik Stop/Profit (HYBRID MOD - Sıkı Risk + Uzun Kar)
+ATR_STOP_LOSS_MULTIPLIER = 3.0     # 5.0 -> 3.0 (Sıkı stop - Kayıpları kes)
+ATR_TAKE_PROFIT_MULTIPLIER = 15.0  # 20.0 -> 15.0 (Daha gerçekçi hedef)
+ATR_TRAILING_STOP_MULTIPLIER = 3.0 # 6.0 -> 3.0 (Karı koru - HEKTS vakasını önle) 
 
 # Portfolio Diversification
 
@@ -174,18 +181,17 @@ ATR_TRAILING_STOP_MULTIPLIER = 4.0 # 2.5 -> 4.0 (Rallide erken çıkmayı önle)
 MAX_STOP_LOSS_PCT = 0.10    # %4 -> %10 (Volatilitede patlamamak için)
 TRAILING_STOP_ACTIVE = True
 
-# Portföy Yapılandırması (Çeşitlendirme & Risk)
-PORTFOLIO_SIZE = 5           # 7 -> 5 (Konsantrasyon Artırıldı)
-WEIGHTING_STRATEGY = 'RiskParity' 
-RISK_PER_TRADE = 0.02        
+# Portföy Yapılandırması (Konsantre & Saldırgan)
+PORTFOLIO_SIZE = 3           # 5 -> 3 (En iyi 3 hisseye gömül)
+WEIGHTING_STRATEGY = 'EqualWeight'  # RiskParity -> EqualWeight (Eşit böl, riski önemseme)
+RISK_PER_TRADE = 0.25        # %2 -> %25 (Tek işlemde sermayenin çeyreği!)        
 
-ENABLE_MOMENTUM_FILTER = False # Temporarily disabled to verify baseline
+ENABLE_MOMENTUM_FILTER = False # Aggressive Mode: Filter OFF (Düşen bıçakları da tutsun)
 MAX_SINGLE_POS_WEIGHT = 0.33 # Tek bir hisseye ayrılacak max ağırlık (limit)
 ENABLE_RISK_SIZING = True    # Risk-based sizing aktif/pasif
 
-# Güven Eşiği (AGRESİF - %0.60)
 CONFIDENCE_THRESHOLDS = {
-    'TIER_1': 0.45  # 0.50 -> 0.45 (Ralli FOMO modu - Daha agresif giriş)
+    'TIER_1': 0.30  # 0.35 -> 0.30 (Ultra Aggressive - Low Confidence OK)
 }
 
 # Sektörel farklılaştırma ekle
@@ -225,7 +231,8 @@ REGIME_THRESHOLDS = {
 }
 
 # Macro Gate Eşikleri (AGRESİF - KAPALI)
-ENABLE_MACRO_GATE = True  # Alpha koruması için aktif
+# Macro Gate Eşikleri (AGRESİF - KAPALI)
+ENABLE_MACRO_GATE = False  # Saldırgan mod: Market çökse de işlem yap
 # Macro Gate (Global Risk Yönetimi)
 # Macro Gate (Global Risk Yönetimi)
 MACRO_GATE_THRESHOLDS = {

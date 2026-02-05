@@ -59,14 +59,68 @@ class DataLoader:
         
         return combined_df
 
+    def _fetch_fallback(self, ticker):
+        """YFinance başarısız olursa İş Yatırım'dan dener."""
+        if 'KOZAL' not in ticker: return None
+        
+        print(f"  [Fallback] İş Yatırım deneniyor: {ticker}...")
+        try:
+            from isyatirimhisse import fetch_stock_data
+            # Sembol Dönüşümü (Mapping)
+            # KOZAL.IS -> TRALT
+            sym = ticker.replace('.IS', '')
+            if sym == 'KOZAL': sym = 'TRALT'
+            
+            end_d = datetime.now().strftime('%d-%m-%Y')
+            start_d = pd.to_datetime(self.start_date).strftime('%d-%m-%Y')
+
+            df_is = fetch_stock_data(
+                symbols=[sym], 
+                start_date=start_d,
+                end_date=end_d
+            )
+            
+            if df_is is not None and not df_is.empty:
+                df_is['Date'] = pd.to_datetime(df_is['HGDG_TARIH'])
+                df_is.set_index('Date', inplace=True)
+                
+                rename_map = {
+                    'HGDG_EN_YUKSEK': 'High',
+                    'HGDG_EN_DUSUK': 'Low',
+                    'HGDG_KAPANIS': 'Close',
+                    'HGDG_HACIM_LOT': 'Volume'
+                }
+                
+                df_is.rename(columns=rename_map, inplace=True)
+                
+                # Open sütunu kontrolü
+                if 'HGDG_ACILIS' in df_is.columns:
+                    df_is['Open'] = df_is['HGDG_ACILIS']
+                else:
+                    df_is['Open'] = df_is['Close'] # Fallback
+                    
+                # Eksik sütunları tamamla
+                for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                    if col not in df_is.columns:
+                        df_is[col] = df_is['Close'] if col != 'Volume' else 0
+                        
+                df_is = df_is[['Open', 'High', 'Low', 'Close', 'Volume']]
+                print(f"  [Başarılı] İş Yatırım'dan veri alındı: {sym}")
+                return df_is
+                
+        except Exception as e_is:
+            print(f"  [Fallback Hata] İş Yatırım da başarısız: {e_is}")
+            
+        return None
+
     def fetch_stock_data(self, ticker):
         """Tek bir hisse senedi için veri çeker."""
         print(f"{ticker} verisi indiriliyor...")
         try:
             data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
             if data.empty:
-                print(f"UYARI: {ticker} için veri bulunamadı.")
-                return None
+                print(f"UYARI: {ticker} için veri bulunamadı (YFinance).")
+                return self._fetch_fallback(ticker)
             
             # MultiIndex sütunları düzeltme (yfinance bazen Adj Close, Close seviyelerinde dönebilir)
             if isinstance(data.columns, pd.MultiIndex):
@@ -76,8 +130,8 @@ class DataLoader:
             data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
             return data
         except Exception as e:
-            print(f"HATA: {ticker} indirilirken sorun oluştu: {e}")
-            return None
+            print(f"HATA: {ticker} (yfinance) indirilirken sorun oluştu: {e}")
+            return self._fetch_fallback(ticker)
     
     def resample_to_weekly(self, data):
         """Günlük OHLCV verisini haftalık periyoda dönüştürür."""

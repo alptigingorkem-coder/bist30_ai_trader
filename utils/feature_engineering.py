@@ -150,6 +150,15 @@ class FeatureEngineer:
                  df['Aviation_FX_Interaction'] = df['Sector_Aviation'] * df['USDTRY_Change']
             if 'Sector_Automotive' in df.columns:
                  df['Auto_FX_Interaction'] = df['Sector_Automotive'] * df['USDTRY_Change']
+            if 'Sector_Energy' in df.columns:
+                 df['Energy_FX_Interaction'] = df['Sector_Energy'] * df['USDTRY_Change']
+            if 'Sector_Telecom' in df.columns:
+                 df['Telecom_FX_Interaction'] = df['Sector_Telecom'] * df['USDTRY_Change']
+            if 'Sector_Steel' in df.columns:
+                 df['Steel_FX_Interaction'] = df['Sector_Steel'] * df['USDTRY_Change']
+            if 'Sector_Retail' in df.columns:
+                # Perakende için enflasyon verisi yok, o yüzden kur geçişgenliği varsayımı
+                df['Retail_FX_Interaction'] = df['Sector_Retail'] * df['USDTRY_Change']
 
         self.data = df
         return df

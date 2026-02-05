@@ -357,8 +357,8 @@ def run_single_ticker_strategy(preds, actuals, data, ticker=None):
     if ticker:
         sector = config.get_sector(ticker)
         # High-risk sectors from 2023 analysis: Construction, Real Estate
-        HIGH_RISK_SECTORS = ['Construction', 'Real Estate']
-        MODERATE_RISK_SECTORS = ['Bank']  # Banks had volatility post-election
+        HIGH_RISK_SECTORS = ['Construction', 'RealEstate']
+        MODERATE_RISK_SECTORS = ['Banking']  # Banks had volatility post-election
         
         if sector in HIGH_RISK_SECTORS:
             sector_penalty = 1.4  # 40% harder to enter

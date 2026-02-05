@@ -126,7 +126,7 @@ class FeatureEngineer:
         sector = config.get_sector(ticker)
         
         # Ana model için sadece en kritik sektörleri dummy yapalım (Sparse önlemek için)
-        critical_sectors = ['Banking', 'Holding', 'Aviation', 'Automotive', 'Steel', 'Energy']
+        critical_sectors = ['Banking', 'Holding', 'Aviation', 'Automotive', 'Steel', 'Energy', 'Telecom', 'Retail', 'RealEstate']
         
         for s in critical_sectors:
             df[f'Sector_{s}'] = 1 if sector == s else 0

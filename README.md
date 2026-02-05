@@ -35,22 +35,25 @@ Bu proje, Borsa İstanbul (BIST30) payları için geliştirilmiş, Random Forest
 
 ```
 bist30_ai_trader/
-├── core/                           # Çekirdek modüller
-│   ├── paper_engine.py             # Shadow Execution (Stateless)
-│   ├── paper_portfolio.py          # Portföy state (Slippage)
-│   └── paper_logger.py             # JSON logging
+├── core/                     # Çekirdek modüller (backtesting, risk yönetimi)
+│   ├── backtesting.py        # Backtest motoru
+│   ├── risk_manager.py       # Risk yönetimi
+│   └── live_data_engine.py   # Canlı veri motoru
 │
-├── paper_trading_position_aware/   # Position-Aware Paper Trading
-│   ├── portfolio_state.py          # Pozisyon takibi
-│   ├── position_engine.py          # 6 karar tipi
-│   ├── position_runner.py          # Orchestrator
-│   └── position_logger.py          # JSON + CSV logging
+├── paper_trading/            # Paper Trading sistemi
+│   ├── portfolio_state.py    # Pozisyon ve portföy takibi
+│   ├── position_engine.py    # 6 karar tipi motoru
+│   ├── position_runner.py    # Günlük orchestrator
+│   ├── strategy_health.py    # Strateji sağlık monitörü
+│   └── live_execution.py     # Simülasyon motoru
 │
-├── models/saved/                   # Eğitilmiş modeller
-├── strategies/                     # Ticaret stratejileri
-├── configs/                        # Sektör konfigürasyonları
-├── docs/                           # Teknik dokümantasyon
-└── tools/                          # Yardımcı araçlar
+├── models/                   # Eğitilmiş ML modelleri
+├── configs/                  # Sektör konfigürasyonları (banking, growth...)
+├── research/                 # Araştırma ve optimizasyon scriptleri
+├── ui/                       # Web arayüzü
+├── tests/                    # Birim testleri
+├── docs/                     # Teknik dokümantasyon
+└── utils/                    # Yardımcı modüller
 ```
 
 ---
@@ -110,7 +113,7 @@ python run_paper.py
 
 ### 2. Position-Aware Paper Trading
 ```bash
-python paper_trading_position_aware/position_runner.py
+python paper_trading/position_runner.py
 ```
 - Pozisyon belleği (açık/kapalı takibi)
 - 6 karar tipi: OPEN, HOLD, SCALE_IN, SCALE_OUT, CLOSE, IGNORE
@@ -182,4 +185,4 @@ Bu proje **AGPL-3.0** lisansı ile lisanslanmıştır. Detaylar için [LICENSE](
 
 ---
 
-**Son Güncelleme:** 2026-02-01 | **Versiyon:** 2.0
+**Son Güncelleme:** 2026-02-05 | **Versiyon:** 2.1

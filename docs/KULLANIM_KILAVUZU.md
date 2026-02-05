@@ -40,13 +40,14 @@ copy config.example.py config.py
 Sistemi kullanmak için aşağıdaki ana komutları kullanabilirsiniz.
 
 ### A. Günlük Sinyal Üretimi (`daily_run.py`)
-Yapay zeka modellerini çalıştırarak o gün için al, sat veya tut tavsiyeleri üretir.
+Yapay zeka modellerini çalıştırarak o gün için al, sat veya tut tavsiyeleri üretir. **Agresif mod aktif: Sistem en iyi 5 hisseye odaklanır (Alpha Odaklı).**
 
 - **Komut:** `python daily_run.py`
 - **Ne Yapar?** 
   - Güncel verileri çeker.
-  - Sektörel stratejileri çalıştırır.
-  - Macro Gate (Piyasa Güvenliği) kontrolü yapar.
+  - **Top 5 Seçimi:** En yüksek potansiyelli 5 hisseyi belirler (Konsantrasyon: Top 5).
+  - **Ağırlıklı Tahsisat:** Risk Parity mantığıyla sermaye dağılımı önerir.
+  - Macro Gate (Piyasa Güvenliği) kontrolü yapar (Opsiyonel/Devre Dışı).
   - Sonuçları ekrana yazar ve bir CSV raporu oluşturur.
 - **Ne Zaman Çalıştırılmalı?** 
   - **Piyasa Kapandıktan Sonra (18:15+)**: Ertesi gün için plan yapmak amacıyla.
@@ -64,7 +65,7 @@ Anlık sinyal kalitesini test eder. Geçmiş pozisyonları hatırlamaz, sadece "
 #### 2. Position-Aware (Pozisyon Takipli) Mod (`position_runner.py`)
 Gerçek bir portföy yönetir gibi çalışır. Kasanızdaki nakiti, açık pozisyonlarınızı ve kar/zarar durumunuzu takip eder.
 
-- **Komut:** `python paper_trading_position_aware/position_runner.py`
+- **Komut:** `python paper_trading/position_runner.py`
 - **Ek Özellikler:**
   - `OPEN_POSITION`: Yeni hisse alır.
   - `CLOSE_POSITION`: Mevcut hisseyi satar.
@@ -73,7 +74,7 @@ Gerçek bir portföy yönetir gibi çalışır. Kasanızdaki nakiti, açık pozi
 - **Ne Zaman Çalıştırılmalı?** Her işlem günü **bir kez**, tercihen piyasa kapanışından sonra (18:15+) çalıştırılmalıdır.
 
 ### C. Modelleri Eğitmek (`train_models.py`)
-Yapay zeka modellerini (Random Forest ve LSTM) güncel verilerle yeniden eğitir.
+Yapay zeka modellerini (Random Forest ve ranker) güncel verilerle yeniden eğitir.
 
 - **Komut:** `python train_models.py`
 - **Ne Sıklıkla?** Haftada bir veya piyasada büyük bir değişim olduğunda çalıştırılması önerilir.
@@ -89,9 +90,9 @@ Position-Aware modunu kullanırken oluşan tüm portföy verileri burada tutulur
 
 | Veri Tipi | Dosya Yolu | Açıklama |
 |-----------|------------|----------|
-| **Portföy Durumu** | `paper_trading_position_aware/logs/portfolio_state.json` | Anlık nakit, açık hisseler ve maliyetleriniz. (**Bu dosya silinirse portföy sıfırlanır!**) |
-| **Günlük Loglar** | `paper_trading_position_aware/logs/daily/` | Her gün için oluşturulan detaylı işlem kayıtları (JSON). |
-| **Özet Raporlar** | `paper_trading_position_aware/logs/summary/` | Tüm oturumların özet performans tablosu (`all_sessions.csv`). |
+| **Portföy Durumu** | `paper_trading/logs/portfolio_state.json` | Anlık nakit, açık hisseler ve maliyetleriniz. (**Bu dosya silinirse portföy sıfırlanır!**) |
+| **Günlük Loglar** | `paper_trading/logs/daily/` | Her gün için oluşturulan detaylı işlem kayıtları (JSON). |
+| **Özet Raporlar** | `paper_trading/logs/summary/` | Tüm oturumların özet performans tablosu (`all_sessions.csv`). |
 
 ### 📁 Stateless (Anlık) Test Logları
 `run_paper.py` çalıştırdığınızda oluşan loglar.
@@ -111,12 +112,12 @@ Position-Aware modunu kullanırken oluşan tüm portföy verileri burada tutulur
 > [!TIP]
 > **Portföyü Sıfırlamak İstiyorum:**
 > Position-Aware modunda baştan başlamak isterseniz şu komutu kullanın:
-> `python paper_trading_position_aware/position_runner.py --reset`
+> `python paper_trading/position_runner.py --reset`
 
 | Sorun | Olası Neden | Çözüm |
 |-------|-------------|-------|
-| **"System Halted" hatası** | Piyasa çok riskli (VIX yüksek veya sert düşüş). | Sistem güvenli moddadır, işlem yapılması önerilmez. |
-| **Sinyal Çıkmıyor** | Strateji kriterleri sağlanmıyor olabilir. | `daily_run.py` çıktısında "Wait" veya "Macro Blocked" uyarılarına bakın. |
+| **"System Halted"** | Piyasa çok riskli (VIX yüksek veya sert düşüş). | Agresif modda bu hata nadirdir; `config.py` üzerinden Macro Gate'i kontrol edin. |
+| **Sinyal Çıkmıyor** | Strateji kriterleri sağlanmıyor olabilir. | `daily_run.py` çıktısında modellerin güven eşiklerini (Confidence) kontrol edin. |
 | **Veri Hatası** | İnternet bağlantısı kesik olabilir. | Bağlantınızı kontrol edip tekrar deneyin. |
 
 ---

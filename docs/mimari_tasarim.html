@@ -4,21 +4,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BIST30 AI Trader - Mimari Tasarım</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>BIST30 AI Trader - Sistem Mimarisi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --accent: #38bdf8;
-            --accent-hover: #0ea5e9;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --border: #334155;
+            --primary: #00f2fe;
+            --secondary: #4facfe;
+            --bg-dark: #050a14;
+            --glass: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #e2e8f0;
+            --text-dim: #94a3b8;
+            --success: #00ff88;
+            --warning: #ffcc00;
+            --danger: #ff4d4d;
         }
 
         * {
@@ -28,412 +29,303 @@
         }
 
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(circle at 10% 20%, rgba(0, 242, 254, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(79, 172, 254, 0.05) 0%, transparent 40%);
+            color: var(--text-main);
             line-height: 1.6;
-            padding: 20px;
+            overflow-x: hidden;
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
+            padding: 40px 20px;
         }
 
         header {
             text-align: center;
-            margin-bottom: 40px;
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 100px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: #000;
+            font-weight: 800;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 242, 254, 0.3);
         }
 
         h1 {
-            font-size: 2.5rem;
-            color: var(--accent);
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #fff, var(--text-dim));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
         }
 
         .subtitle {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
+            color: var(--text-dim);
+            font-size: 1.25rem;
+            font-weight: 300;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
-            gap: 25px;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
         }
 
         .card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
-            padding: 25px;
-            border: 1px solid var(--border);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            transition: transform 0.2s;
+            grid-column: span 12;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 32px;
+            position: relative;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .card:hover {
-            transform: translateY(-2px);
-            border-color: var(--accent);
+            border-color: rgba(0, 242, 254, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            transform: translateY(-5px);
         }
 
-        .card h2 {
-            border-left: 4px solid var(--accent);
-            padding-left: 15px;
-            margin-bottom: 20px;
+        .card-large {
+            grid-column: span 12;
+        }
+
+        .card-medium {
+            grid-column: span 6;
+        }
+
+        @media (max-width: 768px) {
+            .card-medium {
+                grid-column: span 12;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        h2 {
             font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #fff;
         }
 
-        .card h3 {
-            color: var(--accent);
-            margin-top: 15px;
-            margin-bottom: 10px;
-            font-size: 1.2rem;
+        h2::before {
+            content: "";
+            width: 4px;
+            height: 24px;
+            background: var(--primary);
+            border-radius: 2px;
         }
 
         p {
-            margin-bottom: 15px;
-            color: var(--text-secondary);
-        }
-
-        ul {
-            margin-left: 20px;
-            margin-bottom: 15px;
-            color: var(--text-secondary);
-        }
-
-        li {
-            margin-bottom: 5px;
-        }
-
-        code {
-            background-color: rgba(0, 0, 0, 0.3);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            color: var(--accent);
-        }
-
-        pre {
-            background-color: #0f1115;
-            padding: 15px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin-bottom: 15px;
-            border: 1px solid var(--border);
-        }
-
-        pre code {
-            background-color: transparent;
-            color: #ccc;
-            padding: 0;
+            color: var(--text-dim);
+            margin-bottom: 20px;
         }
 
         .mermaid {
-            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 24px;
+            border-radius: 16px;
             margin: 20px 0;
-            background-color: #1a202c;
-            /* Mermaid arka planı için biraz daha açık ton */
-            padding: 15px;
-            border-radius: 8px;
+            display: flex;
+            justify-content: center;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: bold;
+        .stat-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
         }
 
-        .status-crash {
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--danger);
+        .stat-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--glass-border);
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
         }
 
-        .status-safe {
-            background: rgba(34, 197, 94, 0.2);
+        .stat-val {
+            display: block;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .tag {
+            padding: 4px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 100px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+        }
+
+        .tag-active {
             color: var(--success);
+            border-color: rgba(0, 255, 136, 0.2);
+            background: rgba(0, 255, 136, 0.05);
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-
-        th,
-        td {
-            text-align: left;
-            padding: 10px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        th {
-            color: var(--accent);
+        .tag-danger {
+            color: var(--danger);
+            border-color: rgba(255, 77, 77, 0.2);
+            background: rgba(255, 77, 77, 0.05);
         }
 
         footer {
+            margin-top: 80px;
             text-align: center;
-            margin-top: 50px;
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            border-top: 1px solid var(--border);
-            padding-top: 20px;
+            color: var(--text-dim);
+            font-size: 0.875rem;
+            opacity: 0.6;
         }
 
-        /* Config Highlights */
-        .config-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .config-item {
-            background: rgba(255, 255, 255, 0.05);
-            padding: 10px;
-            border-radius: 6px;
-        }
-
-        .config-label {
-            font-size: 0.8rem;
-            color: #64748b;
-        }
-
-        .config-value {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: var(--text-primary);
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--primary);
+            background: rgba(0, 242, 254, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
         }
     </style>
 </head>
 
 <body>
-
     <div class="container">
         <header>
-            <h1>BIST30 AI Trader</h1>
-            <div class="subtitle">Kurumsal Seviye Hibrit Yapay Zeka Ticaret Sistemi</div>
-            <div style="margin-top: 10px;">
-                <span class="status-badge status-safe">Sürüm: Core v1.3</span>
-                <span class="status-badge status-safe">Design: Hybrid</span>
-            </div>
+            <span class="badge">Agresif Büyüme Modu v2.1</span>
+            <h1>Sistem Mimarisi</h1>
+            <p class="subtitle">BIST30 AI Trader Teknik Altyapı ve Karar Mekanizmaları</p>
         </header>
 
         <div class="grid">
-            <!-- 1. System Overview -->
-            <div class="card" style="grid-column: 1 / -1;">
-                <h2>1. Sistem Özeti</h2>
-                <p>BIST30 AI Trader, Borsa İstanbul 30 endeksli hisse senetleri için tasarlanmış, makine öğrenimi
-                    tabanlı bir ticaret platformudur. <strong>Çok katmanlı risk yönetimi mimarisi</strong> kullanarak,
-                    temel analiz, teknik indikatörler ve makroekonomik rejim tespitini birleştirir.</p>
-                <p><strong>Temel Hedef:</strong> %25'in altında drawdown (maksimum kayıp) ile pozitif risk ayarlı getiri
-                    (Sharpe > 1.0) elde etmek.</p>
-
+            <!-- Pipeline -->
+            <div class="card card-large">
+                <h2>Veri ve Sinyal Pipeline</h2>
+                <p>Sistem, Borsa İstanbul 30 endeksindeki hisseleri dinamik olarak derecelendirir. Agresif modda, sistem
+                    en yüksek güven sinyaline sahip Top 5 hisseye odaklanan yoğunlaşmış bir portföy yönetir.</p>
                 <div class="mermaid">
-                    graph TB
-                    subgraph DATA [Veri Katmanı]
-                    A[Piyasa Verisi] --> B[Veri Yükleyici]
-                    B --> C[Özellik Mühendisliği]
-                    end
-
-                    subgraph RISK [Risk Katmanı]
-                    C --> D{Macro Gate\n(Kriz Kontrolü)}
-                    D -->|GÜVENLİ| E[Modelleri Çalıştır]
-                    D -->|KRİZ| F[TÜM İŞLEMLERİ BLOKLA]
-
-                    F -.->|Korumaya Al| Z[Nakit Pozisyonu]
-                    end
-
-                    subgraph AI [Yapay Zeka Katmanı]
-                    E --> M1[Beta Modeli\n(LightGBM)]
-                    E --> M2[Alpha Modeli\n(LightGBM)]
-                    M1 & M2 --> G[Sinyal Üreteci]
-                    end
-
-                    subgraph EXEC [İcra Katmanı]
-                    G --> H{Adaptif\nRisk Yöneticisi}
-                    H --> I[Portföy Yöneticisi]
-                    I --> J[Emir İletimi]
-                    J --> K[Performans]
-                    end
-
-                    style D fill:#b91c1c,stroke:#fff,stroke-width:2px
-                    style F fill:#7f1d1d,stroke:#ef4444,stroke-width:4px
-                    style H fill:#1e40af,stroke:#60a5fa
+                    graph LR
+                    A[Yfinance / Data] --> B[Feature Engineering]
+                    B --> C{Ranking Engine}
+                    C --> D[Target Weight Allocation]
+                    D --> E[Top 5 Selection]
+                    E --> F[Risk Parity / Weighed]
+                    F --> H[Position Aware Execution]
                 </div>
-            </div>
-
-            <!-- 2. Macro Gate -->
-            <div class="card">
-                <h2>2. Macro Gate Mimarisi</h2>
-                <p>Macro Gate, sistemin sigortasıdır. Aşırı piyasa koşullarında (Kriz anlarında) sistemin işlem
-                    yapmasını fiziksel olarak engeller. "Kriz anında en iyi işlem, hiç işlem yapmamaktır."</p>
-
-                <h3>Karar Mekanizması</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Gösterge</th>
-                            <th>Eşik Değer</th>
-                            <th>Durum</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>VIX (Korku Endeksi)</td>
-                            <td>> 30.0</td>
-                            <td><span class="status-badge status-crash">KRİZ (CRASH)</span></td>
-                        </tr>
-                        <tr>
-                            <td>USD/TRY (5 Günlük)</td>
-                            <td>> %3.0</td>
-                            <td><span class="status-badge status-crash">KRİZ (CRASH)</span></td>
-                        </tr>
-                        <tr>
-                            <td>S&P 500 Momentum</td>
-                            <td>
-                                < 0.0 (Negatif)</td>
-                            <td><span class="status-badge status-crash">RİSKLİ (RISK-OFF)</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h3>Aksiyonlar</h3>
-                <ul>
-                    <li><strong>CRASH (Mod 1):</strong> Yeni pozisyon açma, Stop-Loss'u %5'e çek.</li>
-                    <li><strong>SIDEWAYS (Mod 0):</strong> Pozisyon büyüklüğünü azalt, giriş eşiğini 1.5x zorlaştır.
-                    </li>
-                    <li><strong>TREND_UP (Mod 2):</strong> Normal operasyon.</li>
-                </ul>
-            </div>
-
-            <!-- 3. AI Models -->
-            <div class="card">
-                <h2>3. Tahmin Modelleri</h2>
-                <p>Sistem iki farklı model yapısı kullanır (Core Stratejide şu an Beta Modeli aktiftir ancak Alpha ile
-                    hibrit çalışır).</p>
-
-                <div class="mermaid">
-                    classDiagram
-                    class BetaModel {
-                    +Hedef: Excess Return (Hisse - XU100)
-                    +Algoritma: LightGBM
-                    +Girdi: Teknik + Temel
-                    +Amaç: Endeks üstü getiri
-                    }
-                    class AlphaModel {
-                    +Hedef: Mutlak Getiri (NextDay Return)
-                    +Algoritma: LightGBM
-                    +Amaç: Fiyat yönü
-                    }
-                    BetaModel --|> Sinyal
-                    AlphaModel --|> Sinyal
-                </div>
-
-                <h3>Walk-Forward Validasyon</h3>
-                <p>Geleceği görme (look-ahead) hatasını önlemek için modeller her yıl yeniden eğitilir.</p>
-                <pre><code>
-2020 Testi: 2015-2019 verisiyle eğit
-2021 Testi: 2015-2020 verisiyle eğit
-2022 Testi: 2015-2021 verisiyle eğit
-            </code></pre>
-            </div>
-
-            <!-- 4. Risk Management -->
-            <div class="card">
-                <h2>4. Adaptif Risk Yönetimi</h2>
-                <p>Piyasa koşullarına göre kendini ayarlayan dinamik kurallar bütünü.</p>
-
-                <h3>Adaptif Giriş Eşiği</h3>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <div class="config-label">Temel Eşik</div>
-                        <div class="config-value">%0.5</div>
+                <div class="stat-group">
+                    <div class="stat-box">
+                        <span class="stat-val">Top 5</span>
+                        <span class="stat-label">Hisse Odağı</span>
                     </div>
-                    <div class="config-item">
-                        <div class="config-label">Kriz Çarpanı</div>
-                        <div class="config-value">2.0x</div>
+                    <div class="stat-box">
+                        <span class="stat-val">Risk Parity</span>
+                        <span class="stat-label">Ağırlık Yapısı</span>
                     </div>
-                    <div class="config-item">
-                        <div class="config-label">Drawdown Çarpanı</div>
-                        <div class="config-value">1.5x</div>
-                    </div>
-                </div>
-
-                <h3>Dinamik Stop-Loss</h3>
-                <p>Stop seviyeleri BIST30 volatilitesine (ATR) göre belirlenir.</p>
-                <ul>
-                    <li><strong>Normal Stop:</strong> Giriş Fiyatı - (2.0 x ATR)</li>
-                    <li><strong>Take Profit:</strong> Giriş Fiyatı + (2.5 x ATR)</li>
-                    <li><strong>Max Stop (Sabit):</strong> %12 (Sigorta)</li>
-                    <li><strong>Trailing Stop:</strong> Aktif (1.8 x ATR)</li>
-                </ul>
-            </div>
-
-            <!-- 5. Configuration -->
-            <div class="card" style="grid-column: 1 / -1;">
-                <h2>5. Önemli Konfigürasyonlar (config.py)</h2>
-                <div class="config-grid">
-                    <div class="config-item">
-                        <div class="config-label">Zaman Dilimi</div>
-                        <div class="config-value">Haftalık (W)</div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-label">Komisyon</div>
-                        <div class="config-value">%0.25</div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-label">Min. Tutma Süresi</div>
-                        <div class="config-value">5 Hafta</div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-label">Aktif Hisseler</div>
-                        <div class="config-value">30 (Tier 1)</div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-label">Sektör Limiti</div>
-                        <div class="config-value">Max %40</div>
-                    </div>
-                    <div class="config-item">
-                        <div class="config-label">Eğitim Oranı (LR)</div>
-                        <div class="config-value">0.034</div>
+                    <div class="stat-box">
+                        <span class="stat-val">Low Thres</span>
+                        <span class="stat-label">Güven Eşiği (%50)</span>
                     </div>
                 </div>
             </div>
 
-            <!-- 6. Decision Flow -->
-            <div class="card" style="grid-column: 1 / -1;">
-                <h2>6. Karar Akışı (Decision Flow)</h2>
+            <!-- Risk Layers -->
+            <div class="card card-medium">
+                <h2>Güvenlik ve Risk Katmanları</h2>
+                <p>Agresif büyüme hedeflendiği için koruyucu filtreler (Macro Gate) minimize edilmiştir. Sistem,
+                    volatiliteyi bir tehdit değil, getiri fırsatı olarak görür.</p>
+                <div class="tag-row">
+                    <div class="tag tag-active">Macro Gate: Aktif (Gevşek)</div>
+                    <div class="tag tag-active">Dinamik Stop-Loss: Aktif</div>
+                    <div class="tag tag-active">Sektör Limiti: %70</div>
+                    <div class="tag">Circuit Breaker: %30 Drawdown</div>
+                </div>
+            </div>
+
+            <!-- Model Details -->
+            <div class="card card-medium">
+                <h2>Model ve Tahmin Yapısı</h2>
+                <p>Modeller, LightGBM tabanlı Ranking algoritmaları kullanır. Saf getiri yerine, hisselerin birbirine
+                    göre performansını (Relative Strength) ölçer.</p>
+                <div class="stat-group">
+                    <div class="stat-box">
+                        <span class="stat-val">LGBM</span>
+                        <span class="stat-label">Algoritma</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-val">120+</span>
+                        <span class="stat-label">Özellik Sayısı</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Execution Flow -->
+            <div class="card card-large">
+                <h2>Karar ve İcra Akışı</h2>
                 <div class="mermaid">
                     flowchart TD
-                    D[Haftalık Kapanış] --> A[Veri Yükle]
-                    A --> B[Feature Hesapla]
-                    B --> C{Macro Gate\nGüvenli mi?}
+                    subgraph INPUT [Sinyal Girişi]
+                    S1[Günlük Veri] --> S2[Tahmin Üret]
+                    S2 --> S3[Hisseleri Sırala]
+                    end
 
-                    C -->|HAYIR - KRİZ| X[İşlem Yapma / Nakite Dön]
-                    C -->|EVET - GÜVENLİ| E[Modelleri Çalıştır]
+                    subgraph DECISION [Karar Mekanizması]
+                    S3 --> D1{Top 5 İçinde mi?}
+                    D1 -- Evet --> D2{Eşik > 0.50?}
+                    D2 -- Evet --> D3[HEDEF AĞIRLIK BELİRLE]
+                    D1 -- Hayır --> D4[POZİSYON KAPAT / BEKLE]
+                    end
 
-                    E --> F[Tahmin Üret]
-                    F --> G{Adaptif Eşik\nGeçildi mi?}
-
-                    G -->|Hayır| H[Pas Geç]
-                    G -->|Evet| I[AL Sinyali]
-
-                    I --> J{Mevcut Pozisyon\nVar mı?}
-                    J -->|Hayır| K[Pozisyon Aç]
-                    J -->|Evet| L{Stop/Profit\nOldu mu?}
-
-                    L -->|Evet| M[Pozisyonu Kapat]
-                    L -->|Hayır| N[Tutmaya Devam Et]
+                    subgraph EXEC [İcra]
+                    D3 --> E1[Mevcut Portföy Kontrolü]
+                    E1 --> E2[Dinamik Lot Hesaplama]
+                    E2 --> E3[Emir Kaydı]
+                    end
                 </div>
             </div>
-
         </div>
 
         <footer>
-            <p>&copy; 2026 BIST30 AI Trader Project. Generated by Antigravity.</p>
+            <p>BIST30 AI Trader &bull; 2026 &bull; Advanced Agentic Trading Systems</p>
         </footer>
     </div>
 
@@ -441,11 +333,16 @@
         mermaid.initialize({
             startOnLoad: true,
             theme: 'dark',
-            securityLevel: 'loose',
-            flowchart: { curve: 'basis' }
+            fontFamily: 'JetBrains Mono',
+            themeVariables: {
+                primaryColor: '#00f2fe',
+                primaryTextColor: '#fff',
+                lineColor: '#4facfe',
+                mainBkg: '#0a1020',
+                nodeBorder: '#4facfe'
+            }
         });
     </script>
-
 </body>
 
 </html>

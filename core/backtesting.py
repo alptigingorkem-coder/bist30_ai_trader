@@ -22,11 +22,11 @@ class Backtester:
         volume_impact = position_size_qty / avg_volume
         
         if volume_impact < 0.01:
-            return 0.0005  # %0.05 minimal slippage
+            return 0.0002  # %0.02 (Limit emir varsayımı ile çok düşük)
         elif volume_impact < 0.05:
-            return 0.001   # %0.1
+            return 0.0005   # %0.05
         else:
-            return 0.002   # %0.2 yüksek slippage (Daha da artırılabilir)
+            return 0.001   # %0.1 normal slippage
 
     def apply_market_impact(self, price, size_qty, avg_volume, is_buy=True):
         """
@@ -41,7 +41,7 @@ class Backtester:
         
         # %10'dan büyük pozisyonlar fiyatı etkiler
         if volume_impact > 0.10:
-            impact = (volume_impact - 0.10) * 0.002  # Her %10 için +%0.2 etki
+            impact = (volume_impact - 0.10) * 0.001  # Her %10 için +%0.1 etki (Azaltıldı)
             
             if is_buy:
                 return price * (1 + impact)  # Alırken fiyat yükselir
@@ -206,7 +206,20 @@ class Backtester:
             if action == 'HOLD':
                 if is_weighted:
                     # Target Allocation
-                    target_weight = input_val # 0.0 to 1.0 (Capital adjusted)
+                    base_weight = input_val # 0.0 to 1.0 (Capital adjusted)
+                    
+                    # YENİ: Risk-Based Sizing Adjustment
+                    if getattr(config, 'ENABLE_RISK_SIZING', False):
+                        stop_dist = risk_manager.get_stop_distance(current_close, current_atr)
+                        # Risk Weight = Risk_Per_Trade / Stop_Distance
+                        # E.g. 0.02 / 0.10 = 0.20 weight
+                        risk_weight = config.RISK_PER_TRADE / (stop_dist + 1e-6)
+                        
+                        # Ağırlığı risk limitine ve genel limite göre küçült
+                        target_weight = min(base_weight, risk_weight, config.MAX_SINGLE_POS_WEIGHT)
+                    else:
+                        target_weight = base_weight
+
                     if target_weight < 0: target_weight = 0
                     if target_weight > 1: target_weight = 1 # No leverage
                     
@@ -225,10 +238,16 @@ class Backtester:
                             action = 'BUY'
                             target_qty = target_qty_calc
                         elif target_qty_calc < holdings_qty:
-                            # Kısmi satış veya tam satış
-                            action = 'SELL' if target_qty_calc < (holdings_qty * 0.1) else 'REBALANCE_SELL'
-                            target_qty = target_qty_calc
-                            if action == 'SELL': exit_reason = 'WEIGHT_ZERO'
+                            # YENİ: Minimum Holding Days Check (Only for model-driven rebalance/sell)
+                            min_holding = getattr(config, 'MIN_HOLDING_DAYS', 0)
+                            if days_held >= min_holding:
+                                # Kısmi satış veya tam satış
+                                action = 'SELL' if target_qty_calc < (holdings_qty * 0.1) else 'REBALANCE_SELL'
+                                target_qty = target_qty_calc
+                                if action == 'SELL': exit_reason = 'WEIGHT_ZERO'
+                            else:
+                                # Henüz gün dolmadı, ağırlık değişimini reddet
+                                action = 'HOLD'
                             
                 else:
                     # Binary Signal
@@ -250,7 +269,7 @@ class Backtester:
             current_volume = volumes[i]
             current_avg_vol = avg_volumes[i]
             
-            if action == 'BUY' or (action == 'REBALANCE_SELL' and False): # Simplified: Rebalance logic logic handled here
+            if action == 'BUY' or action == 'REBALANCE_SELL': # FIX BUG-5: Rebalance logic enabled
                  # Calculate diff
                  diff_qty = target_qty - holdings_qty
                  
@@ -269,10 +288,14 @@ class Backtester:
                          holdings_qty += diff_qty
                          trades[i] = 1
                          
-                         # Update entry params (weighted average price if adding?)
-                         # For simplicity, if adding from 0:
-                         if not in_position:
-                             entry_price = current_close # Avg cost not tracked strictly
+                         # FIX BUG-6: VWAP Entry Price for Scale-in
+                         if in_position and holdings_qty > 0:
+                             # Old total cost + New total cost / Total qty
+                             # (Using executed_price for new part)
+                             entry_price = (entry_price * (holdings_qty - diff_qty) + executed_price * diff_qty) / holdings_qty
+                         else:
+                             # Fresh entry
+                             entry_price = executed_price # Use executed_price (slippage included)
                              entry_date = current_date
                              peak_price = current_close
                              
@@ -328,12 +351,14 @@ class Backtester:
         
         # Sonuçları DataFrame'e yaz
         df['Position'] = positions
+        df['Actual_Weight'] = current_weights # FIX BUG-2 part 1: Track actual weight
         df['Trades'] = trades 
         df['ExitReason'] = exit_reasons
         df['Equity'] = equities
         
         # Getiri Hesabı
-        df['Strategy_Return_Gross'] = df['Position'].shift(1).fillna(0) * df['Log_Return']
+        # FIX BUG-2 part 2: Strategy return should be based on prior day's WEIGHT, not binary position
+        df['Strategy_Return_Gross'] = df['Actual_Weight'].shift(1).fillna(0) * df['Log_Return']
         
         # Maliyetler: Komisyon + Slippage
         # Komisyon her işlemde (Al/Sat)
@@ -345,7 +370,10 @@ class Backtester:
         
         df['Transaction_Costs'] = commission_cost + slippage_cost
         
-        df['Net_Strategy_Return'] = df['Strategy_Return_Gross'] - df['Transaction_Costs']
+        # FIX BUG-3: Use Equity.pct_change() as the Source of Truth for returns.
+        # This is the most robust way to calculate net daily returns for a ticker
+        # because it captures all realized trades, costs, and mark-to-market.
+        df['Net_Strategy_Return'] = df['Equity'].pct_change().fillna(0)
         
         df['Cumulative_Market_Return'] = (1 + df['Log_Return']).cumprod()
         df['Cumulative_Strategy_Return'] = (1 + df['Net_Strategy_Return']).cumprod()
@@ -373,9 +401,19 @@ class Backtester:
         
         # Temel Metrikler
         total_return = df['Cumulative_Strategy_Return'].iloc[-1] - 1
-        annual_return = returns.mean() * 252
+
+        # FIX-A1 / A3: daily_mean*252 yerine CAGR kullana.
+        # Per-ticker çoğu gün pozisyonda olmadığında daily_mean sıfırla dilüte oluyordu
+        # → yıllık getiri < risk_free → Sharpe zorunlu negatif çıkıyordu.
+        # CAGR = (1 + total_return)^(252 / trading_days) - 1
+        n_trading_days = max(len(returns), 1)
+        annual_return = (1 + total_return) ** (252.0 / n_trading_days) - 1 if total_return > -1 else 0.0
+
         annual_volatility = returns.std() * np.sqrt(252)
-        sharpe_ratio = (annual_return - 0.05) / annual_volatility if annual_volatility > 0 else 0
+
+        # FIX-A1: risk_free = 0  (per-ticker exposure-adjusted kontekst;
+        # Türkiye risk-free %19-45 → anlamlı bir karşılaştırma yapılmaz)
+        sharpe_ratio = annual_return / annual_volatility if annual_volatility > 0 else 0
         
         # Max Drawdown
         cum_ret = df['Cumulative_Strategy_Return']
@@ -404,11 +442,12 @@ class Backtester:
         # Sortino Ratio (Downside deviation)
         downside_returns = returns[returns < 0]
         downside_std = downside_returns.std() * np.sqrt(252)
-        sortino_ratio = (annual_return - 0.05) / downside_std if downside_std > 0 else 0
+        sortino_ratio = annual_return / downside_std if downside_std > 0 else 0
         
         metrics = {
             'Total Return': total_return,
-            'Annual Return': annual_return,
+            'CAGR': annual_return,              # FIX-A3: Standart yıllık getiri (CAGR)
+            'Annual Return': annual_return,     # backward-compat alias
             'Volatility': annual_volatility,
             'Sharpe Ratio': sharpe_ratio,
             'Max Drawdown': max_drawdown,

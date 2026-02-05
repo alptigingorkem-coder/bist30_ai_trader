@@ -39,7 +39,7 @@ class PortfolioManager:
                 position = base_position * 1.5  # Overweight
             elif sharpe_ratio > 1.0:
                 position = base_position * 1.0  # Normal
-            elif sharpe_ratio > 0.6:
+            elif sharpe_ratio > 0.3:
                 position = base_position * 0.5  # Underweight
             else:
                 position = 0

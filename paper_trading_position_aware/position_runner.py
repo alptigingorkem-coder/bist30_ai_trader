@@ -1,177 +1,231 @@
 """
-Position-Aware Paper Trading - Main Orchestrator
-Günlük çalıştırılan ana script.
+Position-Aware Paper Trading Runner - MODERNIZED
+Yeni target-weight based PositionEngine ile uyumlu orchestrator
 """
 
 import sys
 import os
 from datetime import datetime
+import pandas as pd
+import numpy as np
 
-# Root'u path'e ekle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from daily_run import get_signal_snapshots
+import config
+from utils.data_loader import DataLoader
+from utils.feature_engineering import FeatureEngineer
 from paper_trading_position_aware.portfolio_state import PortfolioState
-from paper_trading_position_aware.position_engine import PositionExecutionEngine
+from paper_trading_position_aware.position_engine import PositionEngine
 from paper_trading_position_aware.position_logger import PositionLogger
+from core.risk_manager import RiskManager
+
+
+def load_production_model():
+    """Load best available model"""
+    import os
+    import joblib
+    
+    # Try CatBoost first
+    catboost_path = "models/saved/global_ranker_catboost.cbm"
+    if os.path.exists(catboost_path):
+        from catboost import CatBoostClassifier
+        model = CatBoostClassifier()
+        model.load_model(catboost_path)
+        print(f"✅ CatBoost model loaded: {catboost_path}")
+        return model
+    
+    # Fallback to LightGBM
+    lgbm_path = "models/saved/global_ranker.pkl"
+    if os.path.exists(lgbm_path):
+        model = joblib.load(lgbm_path)
+        print(f"✅ LightGBM model loaded: {lgbm_path}")
+        return model
+    
+    raise FileNotFoundError("❌ No production model found")
+
 
 def run_position_aware_session(verbose: bool = True):
     """
-    Position-Aware Paper Trading oturumu çalıştır.
+    Modern Position-Aware Paper Trading Session
     
-    1. Portföy state'ini yükle
-    2. Sinyal snapshot'larını al
-    3. Her sinyal için pozisyon kararı üret
-    4. Kararları uygula ve logla
-    5. Oturum özetini kaydet
+    1. Load portfolio state
+    2. Download market data
+    3. Generate model predictions
+    4. Calculate target weights (Top 5)
+    5. Execute trades via PositionEngine
+    6. Log and save state
     """
     
     print("\n" + "="*70)
-    print("🎯 POSITION-AWARE PAPER TRADING OTURUMU")
-    print(f"📅 Tarih: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print("🎯 POSITION-AWARE PAPER TRADING (v3.0)")
+    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("="*70)
     
-    # 1. Modülleri başlat
-    portfolio = PortfolioState()
-    engine = PositionExecutionEngine()
+    # 1. Initialize modules
+    portfolio = PortfolioState.load()
+    risk_manager = RiskManager()
+    engine = PositionEngine(portfolio_state=portfolio, risk_manager=risk_manager)
     logger = PositionLogger()
     
     if verbose:
-        print(f"\n📊 Portföy Durumu (Başlangıç):")
-        summary = portfolio.get_summary()
-        print(f"   Nakit          : {summary['cash']:,.0f} TL")
-        print(f"   Pozisyon Sayısı: {summary['positions_count']}")
-        print(f"   Toplam Değer   : {summary['total_portfolio_value']:,.0f} TL")
-        print(f"   Exposure       : %{summary['exposure_ratio']*100:.1f}")
+        print(f"\n📊 Portfolio State (Start):")
+        print(f"   Cash           : {portfolio.cash:,.0f} TL")
+        print(f"   Positions      : {portfolio.position_count()}")
+        print(f"   Total Value    : {portfolio.total_portfolio_value():,.0f} TL")
+        print(f"   Exposure       : {portfolio.exposure_ratio()*100:.1f}%")
     
-    # 2. Sinyalleri al
-    print(f"\n⏳ Sinyal snapshot'ları alınıyor...")
-    try:
-        snapshots = get_signal_snapshots(verbose=verbose)
-    except Exception as e:
-        print(f"❌ Sinyal alınamadı: {e}")
+    # 2. Load model
+    print(f"\n⏳ Loading production model...")
+    model = load_production_model()
+    
+    # 3. Download market data
+    print(f"⏳ Downloading market data...")
+    loader = DataLoader(start_date=config.START_DATE)
+    tickers = config.TICKERS
+    
+    all_data = {}
+    for ticker in tickers:
+        raw = loader.get_combined_data(ticker)
+        if raw is None or len(raw) < 100:
+            continue
+        
+        fe = FeatureEngineer(raw)
+        df = fe.process_all(ticker)
+        
+        if not df.empty:
+            all_data[ticker] = df
+    
+    if not all_data:
+        print("❌ No data available")
         return
     
-    if not snapshots:
-        print("⚠️ Hiç sinyal alınamadı.")
-        return
+    print(f"✅ Processed {len(all_data)} symbols")
     
-    print(f"✅ {len(snapshots)} sinyal alındı.")
+    # 4. Predict & Rank
+    print(f"⏳ Running model predictions...")
+    full_df = pd.concat(all_data.values())
     
-    # 3. Her sinyal için karar üret ve uygula
-    print(f"\n🔄 Kararlar işleniyor...")
+    # Get latest data point for each ticker
+    latest = full_df.groupby('Ticker').tail(1)
     
-    stats = {
-        'open': 0, 'close': 0, 'hold': 0,
-        'scale_in': 0, 'scale_out': 0, 'ignore': 0
-    }
+    # Predict
+    scores = model.predict(latest)
+    latest['Score'] = scores
+    latest = latest.sort_values('Score', ascending=False)
     
-    for i, snapshot in enumerate(snapshots):
-        ticker = snapshot.get('ticker', 'UNKNOWN')
-        signal = snapshot.get('action', 'WAIT')
+    # 5. Calculate Target Weights (Top 5)
+    MAX_POSITIONS = getattr(config, 'PORTFOLIO_SIZE', 5)
+    MIN_CONFIDENCE = 0.55
+    
+    top_picks = latest.head(MAX_POSITIONS)
+    
+    # Simple equal weighting for Top N
+    total_score = top_picks['Score'].sum()
+    top_picks['target_weight'] = top_picks['Score'] / total_score if total_score > 0 else 1.0 / len(top_picks)
+    
+    if verbose:
+        print(f"\n🎯 Target Portfolio (Top {MAX_POSITIONS}):")
+        for _, row in top_picks.iterrows():
+            ticker = row['Ticker']
+            score = row['Score']
+            weight = row['target_weight']
+            price = row['Close']
+            print(f"   {ticker:<10} | Score: {score:.2f} | Weight: {weight*100:>5.1f}% | Price: {price:.2f}")
+    
+    # 6. Execute Trades
+    print(f"\n⚙️ Executing trades...")
+    
+    stats = {'open': 0, 'scale_in': 0, 'scale_out': 0, 'close': 0, 'hold': 0}
+    
+    for _, row in top_picks.iterrows():
+        ticker = row['Ticker']
+        target_weight = row['target_weight']
+        confidence = row['Score']
+        price = row['Close']
         
-        # Portföy durumu (öncesi)
-        portfolio_before = portfolio.get_summary()
-        
-        # Karar üret
-        decision = engine.decide(snapshot, portfolio)
-        action = decision.get('action', 'IGNORE_SIGNAL')
-        
-        # Kararı uygula
-        execution_result = portfolio.apply_trade_decision(decision)
-        
-        # Portföy durumu (sonrası)
-        portfolio_after = portfolio.get_summary()
-        
-        # Logla
-        logger.log_decision(
-            snapshot=snapshot,
-            decision=decision,
-            portfolio_before=portfolio_before,
-            portfolio_after=portfolio_after,
-            execution_result=execution_result
+        decision = engine.process_signal(
+            symbol=ticker,
+            target_weight=target_weight,
+            confidence=confidence,
+            price=price
         )
         
-        # İstatistik güncelle
-        if action == 'OPEN_POSITION':
-            stats['open'] += 1
-        elif action == 'CLOSE_POSITION':
-            stats['close'] += 1
-        elif action == 'HOLD_EXISTING':
-            stats['hold'] += 1
-        elif action == 'SCALE_IN':
-            stats['scale_in'] += 1
-        elif action == 'SCALE_OUT':
-            stats['scale_out'] += 1
-        else:
-            stats['ignore'] += 1
+        action = decision['action']
+        stats[action.lower()] = stats.get(action.lower(), 0) + 1
         
-        if verbose:
-            action_emoji = {
-                'OPEN_POSITION': '🟢',
-                'CLOSE_POSITION': '🔴',
-                'HOLD_EXISTING': '🟡',
-                'SCALE_IN': '⬆️',
-                'SCALE_OUT': '⬇️',
-                'IGNORE_SIGNAL': '⚪'
-            }
-            emoji = action_emoji.get(action, '⚪')
-            print(f"   [{i+1:2d}] {ticker:12s} | {signal:4s} → {emoji} {action}")
+        if verbose and action != 'HOLD':
+            print(f"   {action:<12} {ticker:<10} @ {price:.2f}")
     
-    # 4. Oturum özeti
-    final_summary = portfolio.get_summary()
+    # 7. Close unwanted positions
+    print(f"\n🧹 Cleaning up positions...")
+    allowed_symbols = top_picks['Ticker'].tolist()
+    current_positions = portfolio.get_open_symbols()
+    
+    for symbol in current_positions:
+        if symbol not in allowed_symbols:
+            price = portfolio.get_last_price(symbol)
+            engine.process_signal(
+                symbol=symbol,
+                target_weight=0.0,
+                confidence=0.0,
+                price=price
+            )
+            stats['close'] = stats.get('close', 0) + 1
+            if verbose:
+                print(f"   CLOSE        {symbol:<10} @ {price:.2f}")
+    
+    # 8. Save state
+    portfolio.save()
+    
+    # 9. Summary
+    final_value = portfolio.total_portfolio_value()
+    realized_pnl = portfolio.realized_pnl
     
     print(f"\n" + "-"*70)
-    print(f"📊 OTURUM ÖZETİ")
+    print(f"📊 SESSION SUMMARY")
     print(f"-"*70)
-    print(f"   Toplam Karar     : {len(snapshots)}")
-    print(f"   Açılan Pozisyon  : {stats['open']}")
-    print(f"   Kapatılan        : {stats['close']}")
-    print(f"   Tutulan          : {stats['hold']}")
-    print(f"   Scale In         : {stats['scale_in']}")
-    print(f"   Scale Out        : {stats['scale_out']}")
-    print(f"   Yoksayılan       : {stats['ignore']}")
-    print(f"\n📈 PORTFÖY DURUMU (Son)")
-    print(f"   Nakit            : {final_summary['cash']:,.0f} TL")
-    print(f"   Pozisyon Sayısı  : {final_summary['positions_count']}")
-    print(f"   Toplam Değer     : {final_summary['total_portfolio_value']:,.0f} TL")
-    print(f"   Exposure         : %{final_summary['exposure_ratio']*100:.1f}")
-    print(f"   Gerçekleşen PnL  : {final_summary['realized_pnl']:,.2f} TL")
-    print(f"   Gerçekleşmemiş   : {final_summary['unrealized_pnl']:,.2f} TL")
-    
-    # 5. Özeti kaydet
-    session_metrics = {
-        'open_positions': stats['open'],
-        'close_positions': stats['close'],
-        'hold_existing': stats['hold'],
-        'scale_in': stats['scale_in'],
-        'scale_out': stats['scale_out'],
-        'ignore_signals': stats['ignore'],
-        'realized_pnl': final_summary['realized_pnl'],
-        'unrealized_pnl': final_summary['unrealized_pnl'],
-        'total_exposure': final_summary['total_exposure'],
-        'portfolio_value': final_summary['total_portfolio_value']
-    }
-    
-    logger.flush_session_summary(session_metrics)
-    
-    print(f"\n✅ Oturum tamamlandı. Loglar kaydedildi.")
+    print(f"   Actions:")
+    print(f"     Open       : {stats.get('open', 0)}")
+    print(f"     Close      : {stats.get('close', 0)}")
+    print(f"     Scale In   : {stats.get('scale_in', 0)}")
+    print(f"     Scale Out  : {stats.get('scale_out', 0)}")
+    print(f"     Hold       : {stats.get('hold', 0)}")
+    print(f"\n   Portfolio:")
+    print(f"     Cash       : {portfolio.cash:,.0f} TL")
+    print(f"     Positions  : {portfolio.position_count()}")
+    print(f"     Total Value: {final_value:,.0f} TL")
+    print(f"     Realized PnL: {realized_pnl:,.2f} TL")
+    print(f"\n✅ Session completed")
     print("="*70)
     
-    return final_summary
+    return {
+        'portfolio_value': final_value,
+        'realized_pnl': realized_pnl,
+        'stats': stats
+    }
+
 
 def reset_portfolio():
-    """Portföyü sıfırla (test için)."""
+    """Reset portfolio to initial state"""
     portfolio = PortfolioState()
-    portfolio.reset()
-    print("✅ Portföy sıfırlandı.")
+    
+    # Clear all positions
+    portfolio.positions = {}
+    portfolio.cash = portfolio.initial_capital
+    portfolio.realized_pnl = 0.0
+    portfolio.trade_history = []
+    portfolio.closed_trades = []
+    
+    portfolio.save()
+    print("✅ Portfolio reset to initial state")
+
 
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Position-Aware Paper Trading")
-    parser.add_argument('--reset', action='store_true', help='Portföyü sıfırla')
-    parser.add_argument('--quiet', action='store_true', help='Sessiz mod')
+    parser.add_argument('--reset', action='store_true', help='Reset portfolio')
+    parser.add_argument('--quiet', action='store_true', help='Quiet mode')
     
     args = parser.parse_args()
     

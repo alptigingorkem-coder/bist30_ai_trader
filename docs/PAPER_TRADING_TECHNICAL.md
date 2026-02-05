@@ -8,12 +8,12 @@ Bu dokümantasyon, BIST30 AI Trader projesindeki Paper Trading altyapısının t
 
 ```mermaid
 flowchart TD
-    A[run_paper.py] --> B[daily_run.get_signal_snapshots]
-    B --> C{Signal Snapshot}
-    C --> D[PaperEngine.execute_snapshot]
-    D --> E[PaperLogger.log_decision]
-    E --> F[(logs/paper_trading/*.json)]
-    F --> G[analyze_paper.py]
+    A[daily_run.py] --> B[RankingModel.predict]
+    B --> C{Top 3 Selection}
+    C --> D[Weighted Allocation: Top 5 Risk Parity]
+    D --> E[Position-Aware Runner]
+    E --> F[Execution Decision]
+    F --> G[(Portfolio State JSON)]
 ```
 
 ---
@@ -62,12 +62,12 @@ class PaperEngine:
     def execute_snapshot(self, snapshot: dict) -> dict
 ```
 
-**Execution Logic:**
+**Execution Logic (Aggressive):**
 ```
-1. Signal == 'WAIT' → blocked_reason = 'NO_SIGNAL'
-2. macro_blocked == True → blocked_reason = 'MACRO_GATE_BLOCK'
-3. size <= 0 → blocked_reason = 'ZERO_QUANTITY'
-4. Otherwise → executed = True, action_taken = 'SHADOW_BUY'
+1. Signal == 'WAIT' → action = 'HOLD' (If exists)
+2. ENABLE_MACRO_GATE == False (veya Gevşek Eşikler) → Direct execution
+3. Confidence < 0.50 → Signal ignored (Eşik düşürüldü)
+4. Otherwise → Target weight allocation based on Top 5 logic
 ```
 
 **Çıktı Dictionary:**
@@ -104,15 +104,12 @@ def get_signal_snapshots(verbose=True) -> List[dict]
 | Alan | Tip | Kaynak |
 |------|-----|--------|
 | `ticker` | str | Loop variable |
-| `sector` | str | `SECTOR_MAP` lookup |
 | `timestamp` | str | `datetime.now().isoformat()` |
-| `macro_blocked` | bool | Macro Gate check |
-| `macro_reasons` | list | VIX, USDTRY, Global Risk |
-| `action` | str | Strategy.run() |
-| `confidence` | float | Strategy.run() |
-| `regime` | str | Strategy.run() |
-| `current_price` | float | Strategy.run() |
-| `size` | float | Post-adjustment |
+| `macro_blocked`| bool | Macro Gate check (current config: Disabled) |
+| `action` | str | Ranking prediction result |
+| `confidence` | float | Model probability / score |
+| `rank` | int | Sorted position in BIST30 |
+| `weight` | float | Strategic target (Risk Parity or Rank Based) |
 
 ---
 
@@ -294,15 +291,13 @@ ELSE:
 
 ---
 
-## �🚀 Geliştirme Önerileri
+## 🚀 Geliştirme Önerileri
 
 1. **Log Rotasyonu:** Aylık arşivleme mekanizması eklenebilir.
-2. **Real-time Dashboard:** Streamlit ile canlı izleme paneli.
-3. ~~**Slippage Simülasyonu:** `PaperEngine`'e hacim bazlı slippage eklenebilir.~~ ✅ Eklendi (v2.0)
-4. ~~**Position Tracking:** Sanal portföy state'i tutulabilir.~~ ✅ Eklendi (v2.0)
+2. **Real-time Dashboard:** Streamlit veya Dash ile canlı izleme paneli.
+3. **Advanced Risk Models:** Volatilite bazlı dinamik stop-loss optimizasyonu.
 
 ---
 
-**Son Güncelleme:** 2026-02-01
-**Versiyon:** 2.0
-
+**Son Güncelleme:** 2026-02-05
+**Versiyon:** 2.1

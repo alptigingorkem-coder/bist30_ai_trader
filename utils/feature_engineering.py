@@ -9,31 +9,78 @@ class FeatureEngineer:
     def __init__(self, data):
         self.data = data.copy()
 
+    def add_multi_window_targets(self):
+        """
+        Multi-window target creation (Excess Return for T+1, T+5 etc.)
+        This method explicitly creates targets and handles forward shifting.
+        """
+        df = self.data
+        forward_windows = getattr(config, 'FORWARD_WINDOWS', [1])
+        
+        # Ensure it's a list
+        if not isinstance(forward_windows, list):
+            forward_windows = [forward_windows]
+
+        for win in forward_windows:
+            # Suffix for multi-window
+            suffix = f"_T{win}"
+            
+            # Future Close & XU100
+            # We create temporary columns for calculation
+            col_close_fwd = f'Close_T{win}'
+            col_xu100_fwd = f'XU100_T{win}'
+            
+            df[col_close_fwd] = df['Close'].shift(-win)
+            
+            # Stock Return
+            df[f'NextDay_Return{suffix}'] = df[col_close_fwd] / df['Close'] - 1
+            
+            # Excess Return Calculation
+            if 'XU100' in df.columns:
+                df[col_xu100_fwd] = df['XU100'].shift(-win)
+                df[f'NextDay_XU100_Return{suffix}'] = df[col_xu100_fwd] / df['XU100'] - 1
+                df[f'Excess_Return{suffix}'] = df[f'NextDay_Return{suffix}'] - df[f'NextDay_XU100_Return{suffix}']
+                
+                # Cleanup temporary columns immediately to prevent leakage
+                df.drop(columns=[col_close_fwd, col_xu100_fwd], inplace=True)
+            else:
+                df[f'Excess_Return{suffix}'] = df[f'NextDay_Return{suffix}']
+                df.drop(columns=[col_close_fwd], inplace=True)
+
+        # Primary Target Setup (Default to first window)
+        default_win = forward_windows[0]
+        if f'Excess_Return_T{default_win}' in df.columns:
+             df['Excess_Return'] = df[f'Excess_Return_T{default_win}']
+             df['NextDay_Return'] = df[f'NextDay_Return_T{default_win}']
+             if f'NextDay_XU100_Return_T{default_win}' in df.columns:
+                 df['NextDay_XU100_Return'] = df[f'NextDay_XU100_Return_T{default_win}']
+
+        self.data = df
+        return df
+
     def add_technical_indicators(self):
         """Teknik indikatörleri ekler (RSI, MACD, Bollinger, SMA, vb.)"""
         df = self.data
         
-        # RSI
+        # RSI & RSI Slope (Momentum Acceleration)
         df['RSI'] = ta.rsi(df['Close'], length=config.RSI_PERIOD)
+        if 'RSI' in df.columns:
+            df['RSI_Slope'] = df['RSI'].diff(3) # 3 günlük RSI değişimi (İvme)
         
         # MACD
         macd = ta.macd(df['Close'], fast=config.MACD_FAST, slow=config.MACD_SLOW, signal=config.MACD_SIGNAL)
         if macd is not None:
-            # Pandas TA returns MACD, Histogram, Signal
-            # Rename columns to standard names
             macd.columns = ['MACD', 'MACD_Hist', 'MACD_Signal']
             df = pd.concat([df, macd], axis=1)
         
         # Bollinger Bands
         bb = ta.bbands(df['Close'], length=config.BB_LENGTH, std=config.BB_STD)
         if bb is not None:
-            df = pd.concat([df, bb], axis=1) # BBL, BBM, BBU
-            # BB Width (Growth Stratejisi için)
+            df = pd.concat([df, bb], axis=1)
             lower_col = f"BBL_{config.BB_LENGTH}_{config.BB_STD}.0"
             upper_col = f"BBU_{config.BB_LENGTH}_{config.BB_STD}.0"
             mid_col = f"BBM_{config.BB_LENGTH}_{config.BB_STD}.0"
             
-            # Pandas TA bazen sütun isimlerini farklı döndürebilir
             cols = df.columns
             if lower_col not in cols:
                  try:
@@ -43,98 +90,108 @@ class FeatureEngineer:
                  except IndexError:
                      pass
 
-        if upper_col in df.columns and lower_col in df.columns and mid_col in df.columns:
-            df['BB_Width'] = (df[upper_col] - df[lower_col]) / df[mid_col]
+            if upper_col in df.columns and lower_col in df.columns and mid_col in df.columns:
+                df['BB_Width'] = (df[upper_col] - df[lower_col]) / df[mid_col]
+                # YENİ: Volatility Breakout Signal
+                df['Vol_Breakout'] = ((df['Close'] > df[upper_col]) & (df['BB_Width'] > df['BB_Width'].shift(1))).astype(int)
 
         # SMA & Above_SMA200
-        sma_periods = [2, 4, 10, 40] if config.TIMEFRAME == 'W' else [5, 20, 50, 200]
+        sma_periods = [5, 20, 50, 200]
         for p in sma_periods:
-            col_name = f'SMA_{p}'
-            df[col_name] = ta.sma(df['Close'], length=p)
+            df[f'SMA_{p}'] = ta.sma(df['Close'], length=p)
             
-        long_term_sma = f'SMA_{sma_periods[-1]}'
-        if long_term_sma in df.columns:
-            df['Close_to_SMA200'] = df['Close'] / df[long_term_sma]
-            df['Above_SMA200'] = (df['Close'] > df[long_term_sma]).astype(int)
+        if f'SMA_200' in df.columns:
+            df['Close_to_SMA200'] = df['Close'] / df['SMA_200']
+            df['Above_SMA200'] = (df['Close'] > df['SMA_200']).astype(int)
+
+        # YENİ: Advanced Momentum (ROC)
+        df['ROC_5'] = ta.roc(df['Close'], length=5)
+        df['ROC_20'] = ta.roc(df['Close'], length=20)
+        
+        # YENİ: Relative Strength vs Benchmarks
+        if 'XU100' in df.columns:
+            df['RS_XU100'] = df['Close'] / df['XU100']
+            # Reverted to simple momentum (no smoothing) to avoid lag
+            df['RS_XU100_Trend'] = df['RS_XU100'].pct_change(5)
 
         self.data = df
         return df
 
-    def add_macro_derived_features(self):
-        """
-        Create derived macro features for crisis detection BEFORE raw columns are deleted.
-        """
+    def add_sector_dummies(self, ticker):
+        """Sektörel dummy değişkenleri ekler."""
+        df = self.data
+        sector = config.get_sector(ticker)
+        
+        # Ana model için sadece en kritik sektörleri dummy yapalım (Sparse önlemek için)
+        critical_sectors = ['Banking', 'Holding', 'Aviation', 'Automotive', 'Steel', 'Energy']
+        
+        for s in critical_sectors:
+            df[f'Sector_{s}'] = 1 if sector == s else 0
+            
+        self.data = df
+        return df
+
+    def add_macro_interaction_features(self):
+        """Makro veriler ile hisse/sektör özellikleri arasındaki etkileşimleri ekler."""
         df = self.data
         
-        lookback = 1 if config.TIMEFRAME == 'W' else 5
+        # Selective Interactions to prevent overfitting/noise
         
-        # 1. USDTRY_Change
-        if 'USDTRY' in df.columns:
-            df['USDTRY_Change'] = df['USDTRY'].pct_change(lookback)
-        
-        # 2. VIX_Risk & VIX_Change
-        if 'VIX' in df.columns:
-            df['VIX_Risk'] = df['VIX'].copy()
-            df['VIX_Change'] = df['VIX'].pct_change(lookback)
-        
-        # 3. SP500_Return & RS_vs_SP500
-        if 'SP500' in df.columns:
-            df['SP500_Return'] = df['SP500'].pct_change(lookback)
-            df['RS_vs_SP500'] = df['Close'] / df['SP500']
+        # 1. Banking <-> Bond Yields (Interest Rate Sensitivity)
+        if 'BOND_Change' in df.columns and 'Sector_Banking' in df.columns:
+             df['Banking_Interest_Interaction'] = df['Sector_Banking'] * df['BOND_Change']
+             
+        # 2. Export Oriented (Auto/Aviation) <-> USDTRY (FX Sensitivity)
+        if 'USDTRY_Change' in df.columns:
+            if 'Sector_Aviation' in df.columns:
+                 df['Aviation_FX_Interaction'] = df['Sector_Aviation'] * df['USDTRY_Change']
+            if 'Sector_Automotive' in df.columns:
+                 df['Auto_FX_Interaction'] = df['Sector_Automotive'] * df['USDTRY_Change']
 
-        # 4. Gold & Oil & XBANK Momentum
-        if 'GOLD' in df.columns and 'USDTRY' in df.columns:
-            df['Gold_TRY'] = df['GOLD'] * df['USDTRY']
-            df['Gold_TRY_Momentum'] = df['Gold_TRY'].pct_change(lookback)
-            
-        if 'OIL' in df.columns and 'USDTRY' in df.columns:
-            df['Oil_TRY'] = df['OIL'] * df['USDTRY']
-            df['Oil_TRY_Momentum'] = df['Oil_TRY'].pct_change(lookback)
-            
-        if 'XBANK' in df.columns:
-            df['XBANK_Momentum'] = df['XBANK'].pct_change(lookback)
-
-        # 5. Commodity Volatility
-        if 'GOLD' in df.columns and 'OIL' in df.columns:
-             gold_vol = df['GOLD'].pct_change().rolling(20).std()
-             oil_vol = df['OIL'].pct_change().rolling(20).std()
-             df['Commodity_Volatility'] = (gold_vol + oil_vol) / 2
-        
         self.data = df
         return df
+
+    def add_volume_and_extra_indicators(self):
+        """
+        BUG-7 Fix: Stochastic, Volume (OBV/MFI/CMF), Choppiness, ATR.
+        Önceki versiyonda add_macro_interaction_features() altında
+        yorum satırının ardında indentation hatası ile dead code olarak
+        kalmıştı → ayrı, düzgün bir metoda taşındı.
+        """
+        df = self.data
 
         # Stochastic Oscillator
         stoch = ta.stoch(df['High'], df['Low'], df['Close'])
         if stoch is not None:
             df = pd.concat([df, stoch], axis=1)
-            
-        # Volume Indicators
+
+        # Volume-based indicators
         if 'Volume' in df.columns:
-            # On Balance Volume
             df['OBV'] = ta.obv(df['Close'], df['Volume'])
-            # OBV Slope (Trend Teyidi için) 
-            # 5 barlık değişim eğimi
+
+            # Volume Breakout: hacim 20g ortalamasının 1.5x üstü + fiyat artış
+            vol_ma = df['Volume'].rolling(20).mean()
+            df['Volume_Breakout'] = ((df['Volume'] / vol_ma > 1.5) & (df['Close'] > df['Open'])).astype(int)
+
+            # OBV Slope (5-bar trend teyidi)
             if 'OBV' in df.columns:
                 df['OBV_Slope'] = df['OBV'].pct_change(5)
-            
-            # Money Flow Index
+
+            # Money Flow Index (14-period)
             df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'], length=14)
-            
-            # Chaikin Money Flow (CMF) - Para Giriş/Çıkış
-            # 20 periyotluk CMF
+
+            # Chaikin Money Flow (20-period)
             df['CMF_20'] = ta.cmf(df['High'], df['Low'], df['Close'], df['Volume'], length=20)
 
-        # Choppiness Index (Trend vs Yatay Ayrımı)
-        # 1-100 arası değer. > 61.8 ise Yatay/Testere, < 38.2 ise Trend
+        # Choppiness Index  (>61.8 sideways / <38.2 trending)
         try:
             chop = ta.chop(df['High'], df['Low'], df['Close'], length=14)
             if chop is not None:
                 df['Choppiness_14'] = chop
-        except Exception as e:
-            # print(f"Choppiness hatası: {e}")
+        except Exception:
             pass
 
-        # ATR (Average True Range) - Volatilite ve Risk Yönetimi İçin
+        # ATR (Average True Range)
         df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=getattr(config, 'ATR_PERIOD', 14))
 
         self.data = df
@@ -261,8 +318,8 @@ class FeatureEngineer:
         df['DayOfWeek'] = df.index.dayofweek
         df['Month'] = df.index.month
         df['Quarter'] = df.index.quarter
-        df['IsMonday'] = (df.index.dayofweek == 0).astype(int)
-        df['IsFriday'] = (df.index.dayofweek == 4).astype(int)
+        # df['IsMonday'] = (df.index.dayofweek == 0).astype(int) # Noise removal
+        # df['IsFriday'] = (df.index.dayofweek == 4).astype(int) # Noise removal
         self.data = df
         return df
 
@@ -277,25 +334,32 @@ class FeatureEngineer:
         vol_window = 4 if config.TIMEFRAME == 'W' else 20
         df['Volatility_20'] = df['Log_Return'].rolling(window=vol_window).std()
         
-        # Relative Volatility (Hisse volatilitesi / Uzun vadeli ortalaması)
+        # Volatility Ratio KALDIRILDI (Defansif özellik)
+        # df['Volatility_Ratio'] = ... 
+        
+        # Upside Volatility (İyi Volatilite - Ralli Göstergesi)
+        # Sadece pozitif getirilerin standart sapması
+        df['Upside_Volatility'] = df['Log_Return'].where(df['Log_Return'] > 0).rolling(window=vol_window).std().fillna(0)
+
+        # BUG-8 Fix: Removed duplicate return/lag calculation block that was repeated below
+            
+        # Relative Volatility (Stock volatility / Long-term average)
         df['Volatility_Ratio'] = df['Volatility_20'] / df['Volatility_20'].rolling(52 if config.TIMEFRAME=='W' else 252).mean()
 
-        # Excess Return (Alpha) = Hisse Getirisi - Endeks Getirisi
+        # Excess Return (Alpha) = Stock Return - Index Return
         if 'XU100' in df.columns:
             df['XU100_Return'] = np.log(df['XU100'] / df['XU100'].shift(1))
             df['Excess_Return_Current'] = df['Log_Return'] - df['XU100_Return']
         else:
             df['Excess_Return_Current'] = df['Log_Return']
-
-        # Lag Features (Haftalık: 1, 2, 4, 12 hafta)
+            
+        # Feature Cleansing: Remove raw price lags
         lags = [1, 2, 4, 12] if config.TIMEFRAME == 'W' else [1, 5, 20, 60]
         for lag in lags:
-            df[f'Close_Lag_{lag}'] = df['Close'].shift(lag)
             df[f'Return_Lag_{lag}'] = df['Close'].pct_change(lag) 
             df[f'Excess_Return_Lag_{lag}'] = df['Excess_Return_Current'].shift(lag)
             
-        # Momentum Trend (Growth Stratejisi için Kompozit Skor)
-        # RSI + Return_Lag_4w + Return_Lag_12w kombinasyonu
+        # Momentum Trend (Composite Score for Growth Strategy)
         col_list = df.columns
         if 'Return_Lag_4w' in col_list and 'Return_Lag_12w' in col_list:
             df['Momentum_Trend'] = (
@@ -304,17 +368,18 @@ class FeatureEngineer:
                 (df['RSI'] > 50).astype(int)
             )
             
-        # Hedef Değişkenler
-        df['NextDay_Close'] = df['Close'].shift(-1)
-        df['NextDay_Direction'] = (df['NextDay_Close'] > df['Close']).astype(int)
-        df['NextDay_Return'] = df['Close'].shift(-1) / df['Close'] - 1
-        
-        if 'XU100' in df.columns:
-            df['NextDay_XU100_Return'] = df['XU100'].shift(-1) / df['XU100'] - 1
-            df['Excess_Return'] = df['NextDay_Return'] - df['NextDay_XU100_Return']
+        # Target Variables logic moved to add_multi_window_targets()
+        # This section is removed to prevent duplication.
+
+
+        # Risk-Adjusted Excess Return (Sharpe-like single day/window)
+        # BUG-9 Fix: Use Excess_Return_Current (today) instead of Excess_Return (future/target)
+        vol_col = 'Volatility_20'
+        if vol_col in df.columns:
+            df['Excess_Return_RiskAdjusted'] = df['Excess_Return_Current'] / (df[vol_col] + 1e-9)
         else:
-            df['Excess_Return'] = df['NextDay_Return']
-        
+            df['Excess_Return_RiskAdjusted'] = df['Excess_Return_Current']
+            
         self.data = df
         return df
 
@@ -333,6 +398,11 @@ class FeatureEngineer:
         # 2. VIX_Risk (direct copy for now, could add smoothing)
         if 'VIX' in df.columns:
             df['VIX_Risk'] = df['VIX'].copy()
+
+        # 2a. Bond Change (Derived here to be available for interaction)
+        if 'BOND_10Y' in df.columns:
+             # 5-day change in bond yields
+             df['BOND_Change'] = df['BOND_10Y'].diff(5)
         
         # 3. SP500_Return & RS_vs_SP500
         if 'SP500' in df.columns:
@@ -362,10 +432,10 @@ class FeatureEngineer:
         self.data = df
         return df
     
-    def get_macro_status(self):
+    def get_macro_gate_status(self):
         """
-        Makroekonomik verilerin durumunu analiz eder ve boolean flag'ler döndürür.
-        Bu çıktı model tarafından DEĞİL, Daily Run execution gate tarafından kullanılır.
+        Legacy method for single step check.
+        Values are calculated on the fly for the last row.
         """
         status = {
             "VIX_HIGH": False,
@@ -373,97 +443,148 @@ class FeatureEngineer:
             "GLOBAL_RISK_OFF": False
         }
         df = self.data
-        
-        # Son satırı (en güncel veriyi) al
-        # Dikkat: Data henüz drop edilmediği için raw macro sütunları duruyor olmalı.
         if df.empty: return status
         
         last_row = df.iloc[-1]
-        
-        # Eşik Değerler
         thresholds = getattr(config, 'MACRO_GATE_THRESHOLDS', {
             'VIX_HIGH': 30.0,
             'USDTRY_CHANGE_5D': 0.03,
             'SP500_MOMENTUM': 0.0
         })
         
-        # 1. VIX Kontrolü
         if 'VIX' in df.columns and not pd.isna(last_row['VIX']):
             status["VIX_HIGH"] = bool(last_row['VIX'] > thresholds['VIX_HIGH'])
             
-        # 2. USDTRY Şok Kontrolü
         if 'USDTRY' in df.columns:
-            # 5 günlük değişim hesapla (anlık)
             try:
-                # Son 5 günü alıp yüzdesel değişime bak
-                # Shift yerine iloc ile manuel bakalım, en son eksi 5 gün öncesi
-                current_price = last_row['USDTRY']
                 lookback = 1 if config.TIMEFRAME == 'W' else 5
-                
                 if len(df) >= lookback:
+                    current_price = last_row['USDTRY']
                     prev_price = df['USDTRY'].iloc[-lookback]
                     pct_change = (current_price - prev_price) / prev_price
                     status["USDTRY_SHOCK"] = bool(pct_change > thresholds['USDTRY_CHANGE_5D'])
-            except:
-                pass
+            except: pass
 
-        # 3. Global Risk Off (SP500 Momentum)
         if 'SP500' in df.columns:
             try:
-                # 5 günlük (veya haftalık modda 1 bar) momentum
                 lookback = 1 if config.TIMEFRAME == 'W' else 5
                 if len(df) > lookback:
                     current = last_row['SP500']
                     prev = df['SP500'].iloc[-lookback]
                     mom = (current - prev) / prev
-                    # Eğer momentum negatifse Risk Off
                     status["GLOBAL_RISK_OFF"] = bool(mom < thresholds['SP500_MOMENTUM'])
-            except:
-                pass
+            except: pass
                 
         return status
 
+    def get_macro_gate_status_vectorized(self, df=None, thresholds=None):
+        """
+        Vectorized version of macro gate check for backtesting.
+        Returns a boolean Series (True = Gate Closed / Risk OFF).
+        """
+        if df is None: df = self.data
+        if thresholds is None:
+            thresholds = getattr(config, 'MACRO_GATE_THRESHOLDS', {
+                'VIX_HIGH': 30.0,
+                'USDTRY_CHANGE_5D': 0.03,
+                'SP500_MOMENTUM': 0.0
+            })
+            
+        # Initialize mask with False (Gate Open / Risk ON)
+        # If any condition is met, we set True (Gate Closed / Risk OFF)
+        mask = pd.Series(False, index=df.index)
+        
+        # BUG-10 Fix: Added shift(1) to prevent look-ahead bias in backtesting
+        # and ensure decisions are based on known data (prior close macro state)
+        if 'VIX' in df.columns:
+            mask |= (df['VIX'].shift(1) > thresholds['VIX_HIGH'])
+            
+        if 'USDTRY' in df.columns:
+            if 'USDTRY_Change' in df.columns:
+                 mask |= (df['USDTRY_Change'].shift(1) > thresholds['USDTRY_CHANGE_5D'])
+            else:
+                 usd_change = df['USDTRY'].pct_change(5).shift(1)
+                 mask |= (usd_change > thresholds['USDTRY_CHANGE_5D'])
+                 
+        if 'SP500' in df.columns:
+            if 'SP500_Return' in df.columns: 
+                 mask |= (df['SP500_Return'].shift(1) < thresholds['SP500_MOMENTUM'])
+            else:
+                 sp_mom = df['SP500'].pct_change(5).shift(1)
+                 mask |= (sp_mom < thresholds['SP500_MOMENTUM'])
+                 
+        return mask
+
     def clean_data(self):
         """NaN değerleri temizler ve MAKRO SÜTUNLARI SİLER."""
-        # Önce gereksiz makro sütunları tespit et ve düşür
-        # Bunlar modelde 'leakage' veya 'noise' yaratmamalı
-        macro_cols_to_drop = ['VIX', 'USDTRY', 'SP500', 'GOLD', 'OIL', 'Tahvil_Faizi']
+        # Tahvil faizi eklendi
+        macro_cols_to_drop = ['VIX', 'USDTRY', 'SP500', 'GOLD', 'OIL', 'Tahvil_Faizi', 'BOND_10Y']
         existing_cols_to_drop = [c for c in macro_cols_to_drop if c in self.data.columns]
         
         if existing_cols_to_drop:
-            # print(f"  [Safety] Modelden gizlenen makro sütunlar siliniyor: {existing_cols_to_drop}")
             self.data.drop(columns=existing_cols_to_drop, inplace=True)
 
         exclude_cols = [
             'NextDay_Close', 'NextDay_Direction', 'NextDay_Return', 'Excess_Return', 
             'Forward_PE', 'EBITDA_Margin', 'Revenue_Growth_YoY', 'Debt_to_Equity', 'PB_Ratio',
-            'EBITDA_Margin_Change', 'Forward_PE_Change'
+            'EBITDA_Margin_Change', 'Forward_PE_Change', 'Excess_Return_RiskAdjusted',
+            'XU100_Return', 'USDTRY_Change', 'VIX_Risk', 'VIX_Change', 'SP500_Return',
+            'Gold_TRY', 'Oil_TRY', 'NextDay_XU100_Return', 'BOND_Change'
         ]
         
+        # Add dynamic multi-window targets to exclude list
+        for c in self.data.columns:
+            if 'Excess_Return_T' in c or 'NextDay_Return_T' in c:
+                exclude_cols.append(c)
+        
+        # Selective Drop Strategy
+        # Drop columns with too many NaNs first? No, we trust our features.
+        # Just drop rows where CRITICAL features are missing.
+        # For derived features, we can fill with 0 (e.g. Interactions, Changes)
+        
+        # Critical columns: Close, RSI, etc. derived from price are usually populated together.
+        # Fundamental data might be sparse.
+        
         cols_to_check = [c for c in self.data.columns if c not in exclude_cols]
-        self.data.dropna(subset=cols_to_check, inplace=True)
+        
+        # Reverted to Imputation Strategy (FFill + 0) to preserve data
+        # especially for Macro/Interaction features which might have lag.
+        self.data[cols_to_check] = self.data[cols_to_check].ffill().fillna(0)
+        
+        # Still drop rows where EVERYTHING is missing (e.g. at the very start)
+        # But allow some NaNs to be filled 
+        # self.data.dropna(subset=cols_to_check, inplace=True) # DISABLED
+        
         return self.data
         
     def process_all(self, ticker=None):
         """Tüm işlemleri sırasıyla çalıştırır."""
+        # 1. Targets First (Before any drop/shift operations might mess up)
+        # However, targets need Close and XU100 which are present.
+        self.add_multi_window_targets()
+        
         self.add_technical_indicators()
         
-        # Macro Technicals only (XBANK, etc.)
+        # Macro Technicals
         if getattr(config, 'ENABLE_MACRO_IN_MODEL', False):
             self.add_bank_features()
             self.add_advanced_market_features()
-        else:
-            print("  [Bilgi] Macro featurelar (Bank, Advanced Market) devre dışı bırakıldı.")
 
-        # Fundamental Data (Dosyadan)
+        # Fundamental Data
         if ticker:
             self.add_fundamental_features_from_file(ticker)
+            # YENİ: Sektör Dummies
+            self.add_sector_dummies(ticker)
         
         self.add_time_features()
         self.add_derived_features()
-        
-        # FIX 1: Create derived macro features BEFORE clean_data() deletes raw columns
         self.add_macro_derived_features()
+
+        # BUG-7 Fix: Volume / Stochastic / ATR indikatörler (önceki dead code, şimdi düzgün metot)
+        self.add_volume_and_extra_indicators()
+
+        # Macro Interaction (Sektör + makro featurelar oluştuktan sonra)
+        self.add_macro_interaction_features()
         
         self.clean_data()
         return self.data

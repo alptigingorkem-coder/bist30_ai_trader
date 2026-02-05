@@ -19,13 +19,12 @@ class CatBoostRankingModel:
         df = self.data.copy()
         
         # Feature Selection
-        exclude_cols = [
-            'NextDay_Close', 'NextDay_Direction', 'NextDay_Return', 'Excess_Return', 
-            'NextDay_XU100_Return', 'Log_Return', 'Ticker', 'Date',
-            'FUNDAMENTAL_DATA_AVAILABLE'
-        ]
+        exclude_cols = self.config.LEAKAGE_COLS + ['Ticker', 'Date', 'FUNDAMENTAL_DATA_AVAILABLE']
         
         feature_cols = [c for c in df.columns if c not in exclude_cols]
+        # Prevent Leakage from dynamic target columns
+        feature_cols = [c for c in feature_cols if not c.startswith('Excess_Return') and not c.startswith('NextDay')]
+        
         # Keep numeric only for simplicity, though CatBoost handles cats well
         # If we had categorical cols like 'Sector', we could pass them to cat_features
         numeric_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
@@ -42,25 +41,47 @@ class CatBoostRankingModel:
             df = df.sort_index(level='Date') 
             
             X = df[numeric_cols]
-            y = df[target_col] # Continuous target is fine for YetiRank
+            y = df[target_col] 
+
+            # Hybrid Target Logic
+            label_type = getattr(self.config, 'LABEL_TYPE', 'Raw') # Default to Raw if not set
+            if label_type == 'Hybrid':
+                hybrid_weight = getattr(self.config, 'HYBRID_WEIGHT', 0.7)
+                num_quantiles = getattr(self.config, 'NUM_QUANTILES', 5)
+                
+                # Raw returns (continuous)
+                raw_y = df[target_col]
+                
+                # Quantile ranks (0 to num_quantiles-1)
+                # We use transform to rank within each date group
+                quantile_y = df.groupby('Date')[target_col].transform(
+                    lambda x: pd.qcut(x, num_quantiles, labels=False, duplicates='drop')
+                ).fillna(0).astype(float)
+                
+                # Combine: Note that quantile_y is 0..4, raw_y is ~0.02.
+                # To make them comparable or effective, we might need scaling, 
+                # but the user requested: (WEIGHT * raw) + ((1-WEIGHT) * quantile)
+                # This explicitly mixes two very different scales.
+                # Assuming user knows this acts as "Quantile Rank with raw return tie-breaking" essentially.
+                y = (hybrid_weight * raw_y) + ((1 - hybrid_weight) * quantile_y)
+
+            # Cat Features Detection (Sector Dummies)
+            # Assuming Sector columns start with "Sector_"
+            cat_features_names = [col for col in numeric_cols if col.startswith('Sector_')]
+            # CatBoost accepts feature names if passed as DataFrame
             
             # Query IDs (Group ID)
-            # CatBoost needs Group ID column or count
-            # We will use Group ID column for Pool
-            # Create unique ID for each Date date
             dates = df.index.get_level_values('Date')
-            # Convert dates to unique integers (queries)
-            # factorize returns (codes, uniques)
             q_ids = pd.factorize(dates)[0]
             
-            pool = Pool(data=X, label=y, group_id=q_ids)
+            pool = Pool(data=X, label=y, group_id=q_ids, cat_features=cat_features_names)
             return pool
         else:
             df = df.dropna(subset=numeric_cols)
             X = df[numeric_cols]
             return X
 
-    def train(self, valid_df=None):
+    def train(self, valid_df=None, custom_params=None):
         print(f"[{self.config.SECTOR_NAME}] Ranking Model Eğitimi (CatBoost YetiRank)...")
         
         train_pool = self.prepare_data(is_training=True)
@@ -80,20 +101,23 @@ class CatBoostRankingModel:
             'iterations': 1000,
             'learning_rate': 0.03,
             'depth': 6,
-            'l2_leaf_reg': 3,
+            'l2_leaf_reg': 5.0,        # Increased regularization
+            'bagging_temperature': 0.5,# Prevent overfitting
             'random_seed': 42,
-            'logging_level': 'Verbose',
+            'logging_level': 'Silent',
             'early_stopping_rounds': 100,
             'train_dir': 'catboost_info',
-            'allow_writing_files': False # Avoid clutter
+            'allow_writing_files': False 
         }
         
+        if custom_params:
+            params.update(custom_params)
+            
         model = CatBoostRanker(**params)
         
         model.fit(
             train_pool,
             eval_set=eval_set,
-            # logging_level='Verbose', # already in params
             plot=False
         )
         

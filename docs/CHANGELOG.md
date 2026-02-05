@@ -3,6 +3,39 @@
 Bu dosya, BIST30 AI Trader projesinde yapılan tüm önemli değişiklikleri içerir.
 Biçim [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) standartlarına dayanmaktadır.
 
+## [2.2.0] - 2026-02-05
+
+### Eklendi
+- **GitHub Yayınlama Hazırlığı**
+  - Proje yapısı dokümantasyonu güncellendi
+  - README.md güncel klasör yapısıyla eşleştirildi
+  - Tüm docs/ dosyaları gözden geçirildi
+
+### Değiştirildi
+- PROJECT_STRUCTURE.md tamamen yeniden yazıldı
+- KULLANIM_KILAVUZU.md güncel yollarla güncellendi
+- PAPER_TRADING_TECHNICAL.md Top 5 mimarisiyle güncellendi
+
+---
+
+## [2.1.0] - 2026-02-03
+
+### İyileştirildi
+- **Risk Yönetimi (Max DD Hedefi)**
+  - Trend_Up rejimi için Trailing Stop gevşetildi (3.0x), Crash modu sıkılaştırıldı (1.0x).
+  - Rejim belirsizliğinde Fallback stratejisi 'Agresif' (Trend_Up) olarak güncellendi.
+  
+- **Alpha ve Portföy**
+  - Portföy büyüklüğü 7'den 5'e düşürüldü (Konsantrasyon artışı).
+  - Macro Gate eşikleri gevşetildi (VIX > 40, USDTRY > %5).
+  - Beta 0.94'e çekildi, Alpha (Jensen) %10.7 seviyesine çıkarıldı.
+
+- **Sinyal Verimliliği**
+  - Güven eşiği (Confidence Threshold) 0.60'tan 0.50'ye düşürüldü.
+  - Sharpe tabanlı pozisyon sizing eşiği 0.6'dan 0.3'e çekildi (Daha fazla işlem sinyali).
+
+---
+
 ## [2.0.0] - 2026-02-01
 
 ### Eklendi

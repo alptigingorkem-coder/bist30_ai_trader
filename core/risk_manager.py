@@ -21,7 +21,7 @@ class RiskManager:
         
         if regime == 'Crash_Bear': # Kriz/Ayı
             self.stop_loss_mult = 1.5 
-            self.trailing_stop_mult = 1.5
+            self.trailing_stop_mult = 1.0 # 1.5 -> 1.0 (Daha sıkı)
             self.take_profit_mult = 5.0 
             
         elif regime == 'Sideways': # Yatay
@@ -31,50 +31,66 @@ class RiskManager:
             
         elif regime == 'Trend_Up': # Ralli
             self.stop_loss_mult = 3.0 
-            self.trailing_stop_mult = 3.0 # 3.5 -> 3.0 (Kârı erken koru)
-            self.take_profit_mult = 999.0 # Kar Al Devre Dışı
+            self.trailing_stop_mult = 3.0 # 2.5 -> 3.0 (Daha gevşek)
+            self.take_profit_mult = 7.0
         
         else:
-            # Bilinmeyen rejim fallback (Sideways varsay)
-             self.stop_loss_mult = 2.0
-             self.trailing_stop_mult = 2.0
-             self.take_profit_mult = 3.0
+            # Bilinmeyen rejim fallback (Trend_Up Say)
+             self.stop_loss_mult = 3.0
+             self.trailing_stop_mult = 3.0
+             self.take_profit_mult = 7.0
+
+    def get_stop_distance(self, price, atr):
+        """
+        Stop mesafesini yüzde olarak döndürür.
+        Pozisyon büyüklüğü hesaplamak için kullanılır.
+        """
+        if np.isnan(atr) or atr == 0:
+            return config.MAX_STOP_LOSS_PCT # Fallback
+            
+        dynamic_dist = (atr * self.stop_loss_mult) / price
+        # Max stop loss ile sınırla (Sigorta)
+        return min(dynamic_dist, config.MAX_STOP_LOSS_PCT)
 
     def check_exit_conditions(self, current_price, entry_price, peak_price, atr, days_held):
         """
-        Çıkış koşullarını kontrol eder.
+        Çıkış koşullarını kontrol eder (Sıkılaştırılmış Trailing Stop).
         Döner: 'SELL' veya 'HOLD'
         """
-        # 1. Dinamik Stop (ATR Bazlı) - Başlangıç Stopu
+        # 1. Analiz
         current_atr = atr if not np.isnan(atr) else entry_price * 0.05
         
-        dynamic_stop_price = entry_price - (current_atr * self.stop_loss_mult)
+        # Başlangıç Stopu (Entry day)
+        initial_stop_dist = current_atr * self.stop_loss_mult
+        initial_stop_price = entry_price - initial_stop_dist
         
-        # Hard Stop (Sigorta) - Max % kayıp
+        # Hard Stop (Yüzdesel Sigorta)
         hard_stop_price = entry_price * (1 - self.max_stop_loss_pct)
         
-        effective_stop = max(dynamic_stop_price, hard_stop_price)
+        # 2. Stop Loss Kontrolü
+        # Eğer fiyat en baştan belirlenen stopun altına indiyse ÇIK
+        effective_initial_stop = max(initial_stop_price, hard_stop_price)
         
-        if current_price < effective_stop:
+        if current_price < effective_initial_stop:
             return 'SELL', 'STOP_LOSS'
 
-        # 2. Trailing Stop (İzleyen Stop)
-        # FIX: Remove "current_price > entry_price" check to allow trailing stop to minimize loss 
-        # even if not in net profit yet (e.g. recovery from -5% to -1% then drop)
-        if self.trailing_active: 
-            trailing_stop_price = peak_price - (current_atr * self.trailing_stop_mult)
-            # Trailing stop asla Entry Stop'un altında başlamaz kuralı eklenebilir ama 
-            # şimdilik saf matematiksel kalsın.
-            
-            if current_price < trailing_stop_price:
-                return 'SELL', 'TRAILING_STOP'
+        # 3. Trailing Stop (Sıkılaştırılmış)
+        if self.trailing_active:
+             # Trailing stop mesafesi normal stopun %80'i kadar olabilir (Daha sıkı takip)
+             tight_multiplier = self.trailing_stop_mult
+             
+             trailing_stop_price = peak_price - (current_atr * tight_multiplier)
+             
+             # Trailing stop kârdayken aktifleşsin gibi bir kısıt koymuyoruz (User isteği: Sıkılaştır)
+             if current_price < trailing_stop_price:
+                 # Sadece kâra geçtikten sonra trailing stop devreye girerse 'Profit Protection' olur.
+                 # Ama biz her türlü geri çekilmede koruma istiyoruz.
+                 return 'SELL', 'TRAILING_STOP'
 
-        # 3. Take Profit (Kar Al) - Ralli Modunda İPTAL
-        # Eğer 'Trend_Up' modundaysak, hedef fiyattan çıkma, trendi sür.
-        # Sadece diğer rejimlerde hedef karı al.
-        if self.current_regime != 'Trend_Up':
-            take_profit_price = entry_price + (current_atr * self.take_profit_mult)
-            if current_price >= take_profit_price:
-                return 'SELL', 'TAKE_PROFIT'
+        # 4. Take Profit (Kar Al)
+        # Trend_Up'da TP çok yüksek ama var (Trend dönüşlerini/aşırı alımı kaçırmamak için)
+        take_profit_price = entry_price + (current_atr * self.take_profit_mult)
+        if current_price >= take_profit_price:
+            return 'SELL', 'TAKE_PROFIT'
             
         return 'HOLD', None

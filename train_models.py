@@ -101,7 +101,13 @@ def train_global_ranker():
     
     # Instantiate with Train
     ranker = RankingModel(df_train, config_banking)
-    ranker.train(valid_df=df_valid)
+    
+    # Check for optimized params in config
+    custom_params = getattr(config, 'OPTIMIZED_MODEL_PARAMS', None)
+    if custom_params:
+        print(f"  > Optimize Edilmiş Hiperparametreler Kullanılıyor: {custom_params}")
+    
+    ranker.train(valid_df=df_valid, custom_params=custom_params)
     
     ranker.save(f"models/saved/global_ranker.pkl")
     

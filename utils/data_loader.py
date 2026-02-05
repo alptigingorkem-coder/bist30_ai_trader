@@ -10,6 +10,54 @@ class DataLoader:
         self.end_date = end_date
         self.tickers = config.TICKERS
         self.macro_tickers = config.MACRO_TICKERS
+        self._macro_cache = None # Macro verileri bir kez çekmek için
+
+    def fetch_macro_data(self):
+        """Makroekonomik verileri çeker ve birleştirir (Önbellekli)."""
+        if self._macro_cache is not None:
+            return self._macro_cache
+            
+        print("Makroekonomik veriler indiriliyor...")
+        macro_df = pd.DataFrame()
+        
+        for name, ticker in self.macro_tickers.items():
+            try:
+                data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
+                if not data.empty:
+                    if isinstance(data.columns, pd.MultiIndex):
+                        data.columns = data.columns.droplevel(1)
+                    macro_df[name] = data['Close']
+            except Exception as e:
+                print(f"HATA: {name} ({ticker}) indirilirken sorun: {e}")
+        
+        macro_df = macro_df.ffill()
+        
+        us_tickers = ['VIX', 'SP500']
+        for col in us_tickers:
+            if col in macro_df.columns:
+                macro_df[col] = macro_df[col].shift(1)
+        
+        self._macro_cache = macro_df
+        return macro_df
+
+    def get_combined_data(self, ticker):
+        """Hisse verisi ile makro verileri birleştirir."""
+        stock_data = self.fetch_stock_data(ticker)
+        if stock_data is None:
+            return None
+            
+        macro_data = self.fetch_macro_data()
+        
+        # Tarih indekslerini hizala
+        combined_df = stock_data.join(macro_data, how='left')
+        
+        # Makro verilerdeki eksiklikleri (tatiller vs) doldur
+        combined_df = combined_df.ffill()
+        
+        # Haftalık resample (eğer aktifse)
+        combined_df = self.resample_to_weekly(combined_df)
+        
+        return combined_df
 
     def fetch_stock_data(self, ticker):
         """Tek bir hisse senedi için veri çeker."""

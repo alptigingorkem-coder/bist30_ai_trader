@@ -44,7 +44,32 @@ class RankingModel:
             # Ensure all forward window targets are present if using multi-window
             windows = getattr(self.config, 'FORWARD_WINDOWS', [1])
             target_cols = [f'Excess_Return_T{win}' for win in windows]
+            
+            # DEBUG: Check for NaNs before drop
+            print(f"[{self.config.SECTOR_NAME}] Data Shape Before Drop: {df.shape}")
+            print(f"[{self.config.SECTOR_NAME}] Target Cols: {target_cols}")
+            
+            # Check for columns that are ALL NaN
+            nan_counts = df[feature_cols + target_cols].isnull().sum()
+            all_nan_cols = nan_counts[nan_counts == len(df)].index.tolist()
+            if all_nan_cols:
+                print(f"[{self.config.SECTOR_NAME}] CRITICAL: The following columns are ALL NaN: {all_nan_cols}")
+                print(f"[{self.config.SECTOR_NAME}] Dropping these columns to save data rows.")
+                df.drop(columns=all_nan_cols, inplace=True)
+                # Update cols lists
+                feature_cols = [c for c in feature_cols if c not in all_nan_cols]
+                target_cols = [c for c in target_cols if c not in all_nan_cols]
+                
+                # FIX: Update instance variable so predict works correctly
+                if is_training:
+                    self.feature_names = feature_cols
+            
+            # Check rows with NaNs
+            rows_with_nan = df[feature_cols + target_cols].isnull().any(axis=1).sum()
+            print(f"[{self.config.SECTOR_NAME}] Rows with NaN: {rows_with_nan} / {len(df)}")
+
             df = df.dropna(subset=feature_cols + target_cols)
+            print(f"[{self.config.SECTOR_NAME}] Data Shape After Drop: {df.shape}")
             
             # Sort by Date (Important for grouping)
             df = df.sort_index(level='Date') 
@@ -77,7 +102,10 @@ class RankingModel:
                 ).fillna(0).astype(float)
                 
                 hybrid_weight = getattr(self.config, 'HYBRID_WEIGHT', 0.7)
-                y = (hybrid_weight * base_target_ranks) + ((1 - hybrid_weight) * quantile_ranks)
+                # FIX: Index alignment error prevention by using numpy values
+                y_values = (hybrid_weight * base_target_ranks.values) + ((1 - hybrid_weight) * quantile_ranks.values)
+                y = pd.Series(y_values, index=df.index)
+                
                 # LightGBM lambdarank requires int labels. Scale and cast to preserve precision.
                 # Use scale * 100 to keep more gradients info
                 y = (y * 100).round().astype(int)
@@ -106,11 +134,24 @@ class RankingModel:
         
         X_train, y_train, q_train = self.prepare_data(is_training=True)
         
-        if valid_df is not None:
+        if X_train.empty or len(y_train) == 0:
+            raise ValueError(f"[{self.config.SECTOR_NAME}] Training data is empty! Check feature engineering or data range.")
+        
+        if valid_df is not None and not valid_df.empty:
              valid_model = RankingModel(valid_df, self.config)
-             X_val, y_val, q_val = valid_model.prepare_data(is_training=True)
-             eval_set = [(X_val, y_val)]
-             eval_group = [q_val]
+             try:
+                 X_val, y_val, q_val = valid_model.prepare_data(is_training=True)
+                 if X_val.empty or len(y_val) == 0:
+                     print(f"[{self.config.SECTOR_NAME}] Validation set empty after processing. Skipping validation.")
+                     eval_set = None
+                     eval_group = None
+                 else:
+                     eval_set = [(X_val, y_val)]
+                     eval_group = [q_val]
+             except Exception as e:
+                 print(f"[{self.config.SECTOR_NAME}] Validation prep error: {e}. Skipping validation.")
+                 eval_set = None
+                 eval_group = None
         else:
              eval_set = None
              eval_group = None

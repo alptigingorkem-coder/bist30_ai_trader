@@ -12,9 +12,9 @@ from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
 
 # Position Aware Modülleri
-from paper_trading_position_aware.position_engine import PositionEngine
-from paper_trading_position_aware.portfolio_state import PortfolioState
-from paper_trading_position_aware.strategy_health import check_strategy_health, StrategyHealth
+from paper_trading.position_engine import PositionEngine
+from paper_trading.portfolio_state import PortfolioState
+from paper_trading.strategy_health import check_strategy_health, StrategyHealth
 from core.risk_manager import RiskManager
 
 warnings.filterwarnings("ignore")
@@ -194,7 +194,7 @@ def run_daily_trader():
     else:
         # Ağırlıklandırma (Score bazlı)
         total_score = top_picks["score"].sum()
-        top_picks["target_weight"] = top_picks["score"] / total_score
+        top_picks["target_weight"] = (top_picks["score"] / total_score) * position_size_multiplier
         
         desired_positions = top_picks.to_dict("records")
         

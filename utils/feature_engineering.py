@@ -5,9 +5,12 @@ import config
 import yfinance as yf
 from datetime import datetime, timedelta
 
+from core.feature_store import feature_store
+
 class FeatureEngineer:
     def __init__(self, data):
         self.data = data.copy()
+
 
     def add_multi_window_targets(self):
         """
@@ -219,21 +222,24 @@ class FeatureEngineer:
         
         self.data = df
         return df
-    
+
+
     def add_fundamental_features_from_file(self, ticker):
         """
-        Harici bir veri kaynağından (Excel/CSV) temel analiz verilerini okur.
+        Feature Store'dan temel analiz verilerini okur (Parquet).
         Dosya formatı: Ticker, Date, Forward_PE, EBITDA_Margin, PB_Ratio, Debt_to_Equity
         """
         df = self.data
-        file_path = "data/fundamental_data.xlsx" # Varsayılan yol
         
         try:
-            # Dosya kontrolü 
-            fundamentals = pd.read_excel(file_path)
+            # Feature Store'dan veri çek (Parquet - Hızlı)
+            # Eğer eksik veri varsa (örneğin 2015-2020) otomatik sentetik doldur
+            start_date = config.START_DATE
+            end_date = datetime.now().strftime('%Y-%m-%d')
             
-            # İlgili hisseyi filtrele
-            stock_fund = fundamentals[fundamentals['Ticker'] == ticker].copy()
+            # stock_fund = feature_store.load_fundamentals(tickers=[ticker])
+            stock_fund = feature_store.get_augmented_fundamentals(tickers=[ticker], start_date=start_date, end_date=end_date)
+            
             if stock_fund.empty:
                  # raise ValueError("Ticker not found in file")
                  pass
@@ -242,9 +248,19 @@ class FeatureEngineer:
                 stock_fund['Date'] = pd.to_datetime(stock_fund['Date'])
                 
                 # FIX: Look-ahead bias önleme
-                # Finansallar dönem sonundan hemen sonra açıklanmaz. 
-                # Türkiye için ortalama 45-60 gün gecikme ekliyoruz.
+                # Sentetik veride buna gerek yok ama yine de tutarlılık için kalsın
+                # Ancak sentetik veri zaten günlük üretildiği için shift 60 gün çok olabilir.
+                # Gerçek veride bilanço gecikmesi var, sentetikte yok (çünkü günlük simülasyon).
+                # Bu yüzden sadece gerçek veri kısmına veya genel yapıya uyalım.
+                
+                # Sentetik veri için 'IsSynthetic' kolonu eklenebilir ama şimdilik basit tutalım.
                 stock_fund['Date'] = stock_fund['Date'] + pd.Timedelta(days=60)
+                
+                # FIX: Timezone Alignment Issues
+                # Normalize to midnight and remove timezone
+                stock_fund['Date'] = stock_fund['Date'].dt.normalize()
+                if stock_fund['Date'].dt.tz is not None:
+                    stock_fund['Date'] = stock_fund['Date'].dt.tz_localize(None)
                 
                 stock_fund.set_index('Date', inplace=True)
                 stock_fund.sort_index(inplace=True)
@@ -254,18 +270,19 @@ class FeatureEngineer:
                 
                 for col in cols_to_merge:
                     if col in stock_fund.columns:
-                        # Feature Engineer içindeki _align metodunu kullanabiliriz
-                         df[col] = self._align_quarterly_data(df.index, stock_fund[col])
-                         
-                         # Türetilmiş özellikler (Değişim)
-                         if col == 'Forward_PE':
-                             df['Forward_PE_Change'] = df['Forward_PE'].pct_change()
-                         if col == 'EBITDA_Margin':
-                             df['EBITDA_Margin_Change'] = df['EBITDA_Margin'].diff()
+                        # Indexleri normalize ederek hizala
+                        aligned_series = self._align_quarterly_data(df.index, stock_fund[col])
+                        df[col] = aligned_series
+                        
+                        # Türetilmiş özellikler (Değişim)
+                        if col == 'Forward_PE':
+                            df['Forward_PE_Change'] = df['Forward_PE'].pct_change()
+                        if col == 'EBITDA_Margin':
+                            df['EBITDA_Margin_Change'] = df['EBITDA_Margin'].diff()
                     else:
                         df[col] = np.nan
                         
-                print(f"  [Başarılı] Temel analiz verileri dosyadan eklendi: {ticker}")
+                print(f"  [Başarılı] Temel analiz verileri Feature Store'dan eklendi: {ticker}")
                 self.data['FUNDAMENTAL_DATA_AVAILABLE'] = True
             
         except FileNotFoundError:
@@ -285,8 +302,24 @@ class FeatureEngineer:
         """Quarterly (çeyreklik) veriyi günlük/haftalık index'e hizalar"""
         quarterly_series = quarterly_series.sort_index()
         
-        # Her günlük/haftalık tarihe karşılık gelen quarterly değeri bul (forward fill)
-        aligned = quarterly_series.reindex(daily_index, method='ffill')
+        # Normalize Indices for Alignment (Temp)
+        # Daily index (Target)
+        target_index = pd.to_datetime(daily_index).normalize()
+        if target_index.tz is not None:
+             target_index = target_index.tz_localize(None)
+             
+        # Quarterly index (Source)
+        source_index = pd.to_datetime(quarterly_series.index).normalize()
+        if source_index.tz is not None:
+             source_index = source_index.tz_localize(None)
+        
+        quarterly_series.index = source_index
+        
+        # Reindex using normalized target index
+        aligned = quarterly_series.reindex(target_index, method='ffill')
+        
+        # Restore original index to match df
+        aligned.index = daily_index
         
         # BACKWARD FILL: İlk quarterly veriden önceki NaN'ları doldur
         if aligned.notna().any():

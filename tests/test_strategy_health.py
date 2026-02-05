@@ -6,7 +6,7 @@ import pytest
 import os
 import json
 import tempfile
-from paper_trading_position_aware.strategy_health import (
+from paper_trading.strategy_health import (
     StrategyHealth, 
     StrategyState, 
     check_strategy_health,

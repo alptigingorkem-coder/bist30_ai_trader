@@ -16,11 +16,11 @@ echo.
 
 :: 3. Gunluk Analiz ve Shadow Trading (Paper Mode)
 echo [1/2] Shadow Trading Motoru Calistiriliyor...
-python run_paper.py
+python paper_trading/position_runner.py
 if %ERRORLEVEL% NEQ 0 (
     color 0C
     echo.
-    echo [HATA] run_paper.py calisirken bir sorun olustu!
+    echo [HATA] position_runner.py calisirken bir sorun olustu!
     pause
     exit /b
 )

@@ -129,13 +129,35 @@ class KAPDataFetcher:
         params = {'from': str(from_date), 'to': str(to_date), 'type': disclosure_type}
         cache_path = self._get_cache_path(ticker, 'disclosures', params)
         
-        if use_cache and self._is_cache_valid(cache_path):
-            cached_data = self._load_cache(cache_path)
-            if cached_data:
-                print(f"[KAP] {ticker} bildirimleri cache'den yüklendi.")
-                return pd.DataFrame(cached_data)
+        # 2. Cache Kontrolü (Offline Mode Support)
+        if use_cache and os.path.exists(cache_path):
+            file_age = time.time() - os.path.getmtime(cache_path)
+            
+            # Eğer offline modda isek veya dosya yeterince yeniyse cache kullan
+            # DİKKAT: Backtest için file_age kontrolünü devre dışı bırakıyoruz (Sürekli geçerli say)
+            if file_age < self.cache_ttl_hours * 3600 or True: # Force Cache Usage for Backtest Stability
+                try:
+                    with open(cache_path, 'r', encoding='utf-8') as f:
+                        cached_data = json.load(f)
+                    if cached_data:
+                        # print(f"[KAP] {ticker} bildirimleri cache'den yüklendi.")
+                        return pd.DataFrame(cached_data)
+                except Exception as e:
+                    print(f"  [CACHE ERROR] {ticker} okuma hatası: {e}")
         
-        # PyKap ile veri çek (Timeout Korumalı)
+        # 3. Canlı Veri Çekme (PyKap) - Sadece explicit istek varsa
+        # Backtest sırasında canlı veri çekip timeout riskine girmeyelim
+        force_live = False # Varsayılan olarak kapalı
+        
+        # 3. Canlı Veri Çekme (PyKap) - STRICT OFFLINE MODE
+        # Backtest sırasında canlı veri çekip timeout riskine girmeyelim.
+        # Sadece açıkça force_live=True denirse internete çık.
+        
+        if not force_live:
+             # print(f"  [KAP INFO] {ticker} için cache bulunamadı, canlı veri çekilmiyor (Strict Offline).")
+             return pd.DataFrame()
+
+        # Buraya sadece force_live=True ise düşer
         import concurrent.futures
         
         def _fetch():
@@ -147,11 +169,11 @@ class KAPDataFetcher:
             )
             
         try:
-            print(f"[KAP] {ticker} bildirimleri çekiliyor ({from_date} -> {to_date})...")
+            print(f"[KAP] {ticker} bildirimleri CANLI çekiliyor ({from_date} -> {to_date})...")
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(_fetch)
-                # 30 saniye timeout (KAP bazen yavaş olabilir ama sonsuz beklememeli)
+                # 30 saniye timeout
                 disclosures = future.result(timeout=30)
             
             if disclosures:

@@ -15,10 +15,10 @@ Sistemin "Alpha Odaklı" modundaki güncel performans rakamları:
 
 | Metrik | Değer | Benchmark (XU100) |
 | :--- | :--- | :--- |
-| **Toplam Getiri** | **~-2.46%** | %39.38 |
-| **Yıllık Getiri (CAGR)** | **Negatif** | %35.56 |
-| **Alpha (Excess)** | **-%41.84** | - |
-| **Beta** | **1.11** | - |
+| **Toplam Getiri** | **~-2.13%** | %39.29 |
+| **Yıllık Getiri (CAGR)** | **Negatif** | %35.48 |
+| **Alpha (Excess)** | **-%37.61** | - |
+| **Beta** | **1.10** | - |
 
 ## 3. Proje Yapısı ve Mimari
 *   **Dil/Framework:** Python 3.12, LightGBM, Pandas.

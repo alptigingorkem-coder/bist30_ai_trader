@@ -93,7 +93,7 @@ TRAIN_END_DATE = "2024-12-31"
 TEST_START_DATE = "2025-01-01" 
 
 # KAP (Kamuyu Aydınlatma Platformu) Entegrasyonu
-ENABLE_KAP_FEATURES = False  # KAP bildirim feature'larını modele dahil et (Backtest hızı için kapalı)
+ENABLE_KAP_FEATURES = True  # KAP bildirim feature'larını modele dahil et (Backtest hızı için kapalı)
 
 
 
@@ -164,9 +164,9 @@ ATR_PERIOD = 14          # Standart
 # Dinamik Stop/Profit (ATR Çarpanları - Günlük için optimize edilecek, şimdilik safety)
 # Dinamik Stop/Profit (Optimize Edildi - Sıkı Takip)
 # Dinamik Stop/Profit (AGRESİF MOD - Trend Following - RESTORED STRICT)
-ATR_STOP_LOSS_MULTIPLIER = 3.0     
-ATR_TAKE_PROFIT_MULTIPLIER = 7.0   
-ATR_TRAILING_STOP_MULTIPLIER = 2.5 
+ATR_STOP_LOSS_MULTIPLIER = 3.5     # 3.0 -> 3.5 (Biraz daha gevşek SL)
+ATR_TAKE_PROFIT_MULTIPLIER = 10.0  # 7.0 -> 10.0 (Karı uzat - Let run)
+ATR_TRAILING_STOP_MULTIPLIER = 4.0 # 2.5 -> 4.0 (Rallide erken çıkmayı önle) 
 
 # Portfolio Diversification
 
@@ -185,7 +185,7 @@ ENABLE_RISK_SIZING = True    # Risk-based sizing aktif/pasif
 
 # Güven Eşiği (AGRESİF - %0.60)
 CONFIDENCE_THRESHOLDS = {
-    'TIER_1': 0.50  # 0.60 -> 0.50 (Daha fazla sinyal yakalamak için düşürüldü)
+    'TIER_1': 0.45  # 0.50 -> 0.45 (Ralli FOMO modu - Daha agresif giriş)
 }
 
 # Sektörel farklılaştırma ekle

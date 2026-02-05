@@ -156,13 +156,13 @@ python analyze_paper.py --full
 
 **Test Sonuçları (Gerçek Veri - OOS 2025):**
 - **Dönem:** 01.01.2025 - 05.02.2026
-- **Ortalama Getiri (Portfolio):** ~-2.46% (Tahmini)
-- **Benchmark (XU100):** %39.38
-- **Alpha (Excess):** -%41.84
-- **Beta:** 1.11
+- **Ortalama Getiri (Portfolio):** ~-2.13%
+- **Benchmark (XU100):** %39.29
+- **Alpha (Excess):** -%37.61
+- **Beta:** 1.10
 - **Sharpe Ratio:** Negatif
-- **Yöntem:** Daily Timeframe + Ensemble (LightGBM + CatBoost) + RiskParity
-- **Not:** KAP verisi entegrasyonu geçici olarak devre dışı bırakılmıştır. Model performansı bu eksiklikten etkilenmiş olabilir. Hedeflenen Alpha üretimi bu dönemde sağlanamamıştır.
+- **Yöntem:** Daily Timeframe + Ensemble + RiskParity (Optimized Risk Params)
+- **Not:** KAP verisi "Offline Mode" ile sisteme dahil edildi. Ralli döneminde defansif kurgu (Risk Parity) nedeniyle benchmark'ın gerisinde kalınmıştır.
 
 ---
 

@@ -142,6 +142,13 @@ python analyze_paper.py --full
 | Growth | ✅ | ✅ |
 | Holding | ✅ | ✅ |
 | Industrial | ✅ | ✅ |
+| Aviation | ✅ | ✅ |
+| Automotive | ✅ | ✅ |
+| Energy | ✅ | ✅ |
+| Steel | ✅ | ✅ |
+| Retail | ✅ | ✅ |
+| Telecom | ✅ | ✅ |
+| Real Estate | ✅ | ✅ |
 
 ---
 
@@ -153,6 +160,7 @@ python analyze_paper.py --full
 - **Yöntem:** Daily Timeframe + LightGBM LambdaRank + Top 5 Allocation
 - **Risk Yönetimi:** %0.70 Round-Trip Maliyet + Dinamik Stop-Loss
 - **Robustness:** Günlük rebalancing sayesinde piyasa şoklarına anlık tepki.
+- **Not:** Sektör bazlı optimizasyon (Automotive, Energy vb.) ile performans artışı hedeflenmektedir (v2.2+).
 
 ---
 

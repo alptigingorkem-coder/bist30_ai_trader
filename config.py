@@ -92,8 +92,8 @@ END_DATE = None # Bugüne kadar al
 TRAIN_END_DATE = "2024-12-31" 
 TEST_START_DATE = "2025-01-01" 
 
-# Ablation / Sentetik Veri Kontrolü
-ENABLE_SYNTHETIC_DATA = False # Kullanıcı isteği: Sadece gerçek veri
+
+
 
 
 

@@ -3,12 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import config
 from core.risk_manager import RiskManager
+from core.position_sizing import KellyPositionSizer
 
 class Backtester:
     def __init__(self, data, initial_capital=10000, commission=0.002):
         self.data = data.copy()
         self.initial_capital = initial_capital
         self.commission = commission
+        self.position_sizer = KellyPositionSizer()
         
     def calculate_slippage(self, volume, avg_volume, position_size_qty):
         """
@@ -209,14 +211,21 @@ class Backtester:
                     base_weight = input_val # 0.0 to 1.0 (Capital adjusted)
                     
                     # YENİ: Risk-Based Sizing Adjustment
+                    # YENİ: Risk-Based Sizing Adjustment
                     if getattr(config, 'ENABLE_RISK_SIZING', False):
                         stop_dist = risk_manager.get_stop_distance(current_close, current_atr)
                         # Risk Weight = Risk_Per_Trade / Stop_Distance
-                        # E.g. 0.02 / 0.10 = 0.20 weight
                         risk_weight = config.RISK_PER_TRADE / (stop_dist + 1e-6)
-                        
-                        # Ağırlığı risk limitine ve genel limite göre küçült
                         target_weight = min(base_weight, risk_weight, config.MAX_SINGLE_POS_WEIGHT)
+                    
+                    # YENİ: Kelly Criterion Adjustment
+                    elif getattr(config, 'ENABLE_KELLY', True): # Varsayılan True (Plan gereği)
+                        # Confidence (input_val) 0-1 arası
+                        # Kelly bize PORTFÖYÜN % kaçı olması gerektiğini söyler (ör. 0.25)
+                        kelly_size_tl = self.position_sizer.get_position_size(equity, confidence=input_val)
+                        kelly_weight = kelly_size_tl / equity
+                        target_weight = min(kelly_weight, config.MAX_SINGLE_POS_WEIGHT)
+                    
                     else:
                         target_weight = base_weight
 
@@ -334,7 +343,14 @@ class Backtester:
                      holdings_qty = 0
                      trades[i] = 1
                      in_position = False
+                     in_position = False
                      exit_reasons[i] = exit_reason
+
+                     # YENİ: Kelly Update (Trade Result)
+                     # Basit PnL hesabı
+                     if entry_price > 0:
+                         pnl_pct = (executed_price - entry_price) / entry_price
+                         self.position_sizer.add_trade(pnl_pct)
             
             # Kayıt
             positions[i] = 1 if holdings_qty > 0 else 0

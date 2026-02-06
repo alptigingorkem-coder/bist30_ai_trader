@@ -1,153 +1,102 @@
 
-import os
-from dataclasses import dataclass
-from typing import Dict, Optional
-
-import joblib
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
+import joblib
+import torch
 
 import config
 
-
-@dataclass
-class EnsembleWeights:
-    """
-    Basit ağırlık yapısı.
-
-    Gelecekte:
-    - Rejim bazlı ağırlık setleri (Crash_Bear / Trend_Up / Sideways)
-    - Sektör bazlı ağırlık setleri
-    eklenebilir.
-    """
-
-    lgbm: float = 0.6
-    catboost: float = 0.4
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, float]) -> "EnsembleWeights":
-        return cls(
-            lgbm=data.get("lgbm", 0.6),
-            catboost=data.get("catboost", 0.4),
-        )
-
-    def to_dict(self) -> Dict[str, float]:
-        return {"lgbm": self.lgbm, "catboost": self.catboost}
-
-
-class EnsembleModel:
-    """
-    Global ensemble modeli.
-
-    Şu an:
-    - LightGBM + CatBoost skoru basit ağırlıklı ortalama ile birleştiriliyor.
-
-    Tasarım olarak:
-    - Rejim (Crash_Bear / Trend_Up / Sideways) ve istenirse sektör
-      bazlı dinamik ağırlıklandırmayı destekleyecek şekilde genişletilebilir.
-    """
-
-    def __init__(
-        self,
-        lgbm_model,
-        catboost_model,
-        weights: Optional[Dict[str, float]] = None,
-        regime_aware: bool = False,
-    ):
-        self.lgbm_model = lgbm_model
-        self.catboost_model = catboost_model
-        self.weights = EnsembleWeights.from_dict(weights or {"lgbm": 0.6, "catboost": 0.4})
-        # Rejim bazlı ağırlıklandırma ileride etkinleştirilebilir
-        self.regime_aware = regime_aware
-
-        # Rejim → ağırlık haritası (taslak)
-        # Örn: Crash_Bear'da CatBoost daha defansif ise ağırlığı artırılabilir.
-        self.regime_weights: Dict[str, EnsembleWeights] = getattr(
-            config,
-            "ENSEMBLE_REGIME_WEIGHTS",
-            {
-                "Sideways": self.weights.to_dict(),
-                "Crash_Bear": {"lgbm": 0.4, "catboost": 0.6},
-                "Trend_Up": {"lgbm": 0.7, "catboost": 0.3},
-            },
-        )
-
-    def _resolve_weights_for_row(self, regime: Optional[str]) -> EnsembleWeights:
+class HybridEnsemble:
+    def __init__(self, lgbm_model=None, tft_model=None):
+        self.lgbm = lgbm_model
+        self.tft = tft_model
+        
+        # Load weights from config
+        lgbm_w = getattr(config, 'HYBRID_WEIGHT', 0.6)
+        tft_w = 1.0 - lgbm_w
+        self.weights = {'lgbm': lgbm_w, 'tft': tft_w}
+        print(f"DEBUG: Hybrid Weights set to: {self.weights}")
+        
+    def load_models(self, lgbm_path, tft_path, tft_config=None):
+        """Eğitilmiş modelleri yükler"""
+        # LightGBM (RankingModel) yükle
+        from models.ranking_model import RankingModel
+        self.lgbm = RankingModel.load(lgbm_path)
+        print(f"✅ LightGBM modeli yüklendi: {lgbm_path}")
+        
+        # TFT Model yükle
+        if tft_config:
+            from models.transformer_model import BIST30TransformerModel
+            # Yeni instance oluştur
+            self.tft_wrapper = BIST30TransformerModel(tft_config)
+            # Modeli yükle (Architecture dataset'ten gelmeliydi ama burada state dict yükleyeceğiz)
+            # NOT: TFT load işlemi dataset parametrelerini gerektirir. 
+            # Bu yüzden eğitimden sonra tüm modeli (pickle) veya parametreleri kaydetmek daha iyi.
+            # Şimdilik placeholder.
+            pass
+            
+    def predict(self, df, tft_dataset=None):
         """
-        Verilen rejim için kullanılacak ağırlıkları döndürür.
-        Şu an için sadece tasarım: Rejim yoksa global default kullanılır.
+        Tahminleri birleştirir.
+        df: LightGBM için DataFrame
+        tft_dataset: TFT için TimeSeriesDataSet veya DataLoader
         """
-        if not self.regime_aware or not regime:
-            return self.weights
-
-        raw = self.regime_weights.get(regime, self.weights.to_dict())
-        return EnsembleWeights.from_dict(raw)
-
-    def predict(self, df: pd.DataFrame) -> np.ndarray:
-        """
-        Ensemble prediction using (opsiyonel) regime-aware weighted scores.
-        """
-        lgbm_scores = self.lgbm_model.predict(df)
-        cat_scores = self.catboost_model.predict(df)
-
-        scores_df = pd.DataFrame(
-            {
-                "lgbm": lgbm_scores,
-                "catboost": cat_scores,
-            },
-            index=df.index,
+        if self.lgbm is None:
+            raise ValueError("LightGBM modeli yüklü değil.")
+            
+        # 1. LightGBM Tahmini
+        lgbm_pred = self.lgbm.predict(df)
+        
+        # 2. TFT Tahmini
+        tft_pred = None
+        if self.tft:
+            # TFT wrapper üzerinden tahmin al
+            # Eğer self.tft bir wrapper instance ise:
+            tft_pred = self.tft.predict(df) # Wrapper handle data conversion hopefully
+            # Tensor to numpy
+            if isinstance(tft_pred, torch.Tensor):
+                tft_pred = tft_pred.cpu().numpy()
+            
+            # Boyut eşitleme (Flatten)
+            tft_pred = tft_pred.flatten()
+            
+        # Eğer TFT yoksa veya başarısızsa sadece LGBM dön (Soft fallback)
+        if tft_pred is None:
+            return lgbm_pred
+            
+        # Uzunluk kontrolü
+        min_len = min(len(lgbm_pred), len(tft_pred))
+        lgbm_pred = lgbm_pred[:min_len]
+        tft_pred = tft_pred[:min_len]
+        
+        # 3. Ağırlıklı Ortalama
+        # Normalizasyon gerekebilir (Rank vs Return)
+        # LGBM LambdaRank score üretir (büyük sınır yok)
+        # TFT Return tahmini üretir (yüzdesel, küçük)
+        
+        # Bu yüzden ikisini de 0-1 arasına veya Rank'e çevirmek mantıklı.
+        # Basitlik için Rank Averaging yapalım:
+        
+        from scipy.stats import rankdata
+        rank_lgbm = rankdata(lgbm_pred)
+        rank_tft = rankdata(tft_pred)
+        
+        # Normalized Ranks (0 to 1)
+        norm_rank_lgbm = rank_lgbm / len(rank_lgbm)
+        norm_rank_tft = rank_tft / len(rank_tft)
+        
+        ensemble_score = (
+            self.weights['lgbm'] * norm_rank_lgbm + 
+            self.weights['tft'] * norm_rank_tft
         )
-
-        # Rejim bilgisi varsa satır bazlı dinamik ağırlık seti kullan
-        if self.regime_aware and "Regime" in df.columns:
-            weights_l = []
-            weights_c = []
-            for r in df["Regime"].astype(str):
-                w = self._resolve_weights_for_row(r)
-                weights_l.append(w.lgbm)
-                weights_c.append(w.catboost)
-            weights_l = np.asarray(weights_l)
-            weights_c = np.asarray(weights_c)
-        else:
-            # Global sabit ağırlıklar
-            weights_l = np.full(len(scores_df), self.weights.lgbm)
-            weights_c = np.full(len(scores_df), self.weights.catboost)
-
-        ensemble_score = (scores_df["lgbm"].values * weights_l) + (
-            scores_df["catboost"].values * weights_c
-        )
-
-        # Basit kural tabanlı RSI filtresi
-        if "RSI" in df.columns:
-            rsi = df["RSI"].to_numpy()
-            # Overbought penalty
-            ensemble_score = np.where(rsi > 80, ensemble_score * 0.8, ensemble_score)
-            # Oversold boost
-            ensemble_score = np.where(rsi < 30, ensemble_score * 1.1, ensemble_score)
-
+        
         return ensemble_score
-
-    def save(self, path: str) -> None:
+    
+    def optimize_weights(self, val_df, val_target):
         """
-        Yalnızca ağırlık ve konfig bilgilerini kaydeder.
-        Modeller ayrı dosyalarda tutulur.
+        Validation set üzerinde en iyi ağırlıkları bulur (Maximize Sharpe or Correlation).
+        Şimdilik basit bir placeholder.
         """
-        payload = {
-            "weights": self.weights.to_dict(),
-            "regime_aware": self.regime_aware,
-            "regime_weights": self.regime_weights,
-        }
-        joblib.dump(payload, path)
-
-    @classmethod
-    def load_with_models(cls, path: str, lgbm_model, cat_model) -> "EnsembleModel":
-        if os.path.exists(path):
-            payload = joblib.load(path)
-            weights = payload.get("weights", {"lgbm": 0.6, "catboost": 0.4})
-            regime_aware = payload.get("regime_aware", False)
-        else:
-            weights = {"lgbm": 0.6, "catboost": 0.4}
-            regime_aware = False
-
-        return cls(lgbm_model, cat_model, weights, regime_aware=regime_aware)
-
+        print("Optimizasyon henüz aktif değil, varsayılan ağırlıklar kullanılacak.")
+        pass

@@ -59,21 +59,56 @@ class DataLoader:
         
         return combined_df
 
-    def _fetch_fallback(self, ticker):
-        """YFinance başarısız olursa İş Yatırım'dan dener."""
-        if 'KOZAL' not in ticker: return None
+    def _check_data_quality(self, data, ticker):
+        """Verinin mantıklı olup olmadığını kontrol eder (Sanity Check)."""
+        if data is None or data.empty: return False
         
+        # 1. Yeterli veri var mı?
+        if len(data) < 10:
+            print(f"  [UYARI] {ticker}: Yetersiz veri ({len(data)} gün).")
+            return False
+            
+        # 2. Son güncel tarih kontrolü (Canlı moddaysa)
+        # last_date = data.index[-1]
+        # if (datetime.now() - last_date).days > 7:
+        #     print(f"  [UYARI] {ticker}: Veri çok eski ({last_date.date()}).")
+        #     # return False # Backtest için kapalı
+            
+        # 3. Anormal Fiyat Hareketleri (Split harici devasa düşüşler)
+        # pct_change < -0.60 (%60'tan büyük düşüş) -> Bölünme veya Hata olabilir
+        daily_pct = data['Close'].pct_change()
+        crashes = daily_pct[daily_pct < -0.60]
+        
+        if not crashes.empty:
+            print(f"  [UYARI] {ticker}: Anormal fiyat düşüşü tespit edildi (Split Olabilir?):")
+            for d, val in crashes.items():
+                print(f"    - {d.date()}: {val:.2%}")
+            # Otomatik düzeltme veya reddetme eklenebilir. Şimdilik uyarı.
+            
+        return True
+
+    def _fetch_fallback(self, ticker):
+        """YFinance başarısız olursa İş Yatırım'dan dener (Generic)."""
         print(f"  [Fallback] İş Yatırım deneniyor: {ticker}...")
         try:
             from isyatirimhisse import fetch_stock_data
-            # Sembol Dönüşümü (Mapping)
-            # KOZAL.IS -> TRALT
-            sym = ticker.replace('.IS', '')
-            if sym == 'KOZAL': sym = 'TRALT'
             
+            # Sembol Dönüşümü (Mapping)
+            sym = ticker.replace('.IS', '')
+            
+            # Özel Mappingler (İş Yatırım tarafındaki farklı kodlar)
+            mapping = {
+                'KOZAL': 'TRALT' # Altın Fonu/Hissesi özel durumu
+            }
+            if sym in mapping:
+                sym = mapping[sym]
+            
+            # Tarih formatı: DD-MM-YYYY
             end_d = datetime.now().strftime('%d-%m-%Y')
             start_d = pd.to_datetime(self.start_date).strftime('%d-%m-%Y')
-
+            
+            # isyatirim kütüphanesi genelde T+2 gecikmeli olabilir veya temettü/bölünme verisi farklı olabilir.
+            # Ancak veri hiç yoksa, bu candır.
             df_is = fetch_stock_data(
                 symbols=[sym], 
                 start_date=start_d,
@@ -81,31 +116,46 @@ class DataLoader:
             )
             
             if df_is is not None and not df_is.empty:
-                df_is['Date'] = pd.to_datetime(df_is['HGDG_TARIH'])
-                df_is.set_index('Date', inplace=True)
+                # Sütunları tanı ve dönüştür
+                # Kütüphane versiyonuna göre sütun adları değişebilir, kontrol edelim.
+                # Genelde: HGDG_TARIH, HGDG_KAPANIS vs.
                 
+                # Tarih
+                date_col = 'HGDG_TARIH' if 'HGDG_TARIH' in df_is.columns else 'Date'
+                if date_col in df_is.columns:
+                    df_is['Date'] = pd.to_datetime(df_is[date_col])
+                    df_is.set_index('Date', inplace=True)
+                
+                # Mapping
                 rename_map = {
                     'HGDG_EN_YUKSEK': 'High',
                     'HGDG_EN_DUSUK': 'Low',
                     'HGDG_KAPANIS': 'Close',
-                    'HGDG_HACIM_LOT': 'Volume'
+                    'HGDG_HACIM_LOT': 'Volume',
+                    'HGDG_HACIM_TL': 'Volume_TL' # Alternatif
                 }
-                
                 df_is.rename(columns=rename_map, inplace=True)
                 
-                # Open sütunu kontrolü
+                # Open Fallback (İş Yatırım bazen vermiyor)
                 if 'HGDG_ACILIS' in df_is.columns:
                     df_is['Open'] = df_is['HGDG_ACILIS']
-                else:
-                    df_is['Open'] = df_is['Close'] # Fallback
-                    
-                # Eksik sütunları tamamla
-                for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                elif 'Close' in df_is.columns:
+                    df_is['Open'] = df_is['Close'] # Mecburi
+                
+                # Eksik sütun kontrolü
+                required = ['Open', 'High', 'Low', 'Close', 'Volume']
+                for col in required:
                     if col not in df_is.columns:
-                        df_is[col] = df_is['Close'] if col != 'Volume' else 0
-                        
-                df_is = df_is[['Open', 'High', 'Low', 'Close', 'Volume']]
-                print(f"  [Başarılı] İş Yatırım'dan veri alındı: {sym}")
+                        if col == 'Volume': df_is[col] = 0
+                        else: df_is[col] = df_is['Close']
+                
+                df_is = df_is[required]
+                
+                # Type conversion (bazen object gelir)
+                df_is = df_is.apply(pd.to_numeric, errors='coerce')
+                df_is.dropna(inplace=True)
+                
+                print(f"  [Başarılı] İş Yatırım'dan veri kurtarıldı: {sym} ({len(df_is)} bar)")
                 return df_is
                 
         except Exception as e_is:
@@ -114,24 +164,41 @@ class DataLoader:
         return None
 
     def fetch_stock_data(self, ticker):
-        """Tek bir hisse senedi için veri çeker."""
-        print(f"{ticker} verisi indiriliyor...")
+        """Tek bir hisse senedi için veri çeker (Robust)."""
+        print(f"{ticker} verisi indiriliyor (Kaynak: Yahoo)...")
+        data = None
+        
+        # 1. Deneme: Yahoo Finance
         try:
             data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
-            if data.empty:
-                print(f"UYARI: {ticker} için veri bulunamadı (YFinance).")
-                return self._fetch_fallback(ticker)
             
-            # MultiIndex sütunları düzeltme (yfinance bazen Adj Close, Close seviyelerinde dönebilir)
-            if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.droplevel(1)
+            # Yapısal Kontroller
+            if not data.empty:
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = data.columns.droplevel(1)
+                
+                # Sütun varlık kontrolü
+                required = ['Open', 'High', 'Low', 'Close', 'Volume']
+                if not all(col in data.columns for col in required):
+                     print(f"  [UYARI] Yahoo eksik sütun döndürdü.")
+                     data = None # Bad data
+                else:
+                    data = data[required]
             
-            # Sadece gerekli sütunları al
-            data = data[['Open', 'High', 'Low', 'Close', 'Volume']]
-            return data
         except Exception as e:
-            print(f"HATA: {ticker} (yfinance) indirilirken sorun oluştu: {e}")
-            return self._fetch_fallback(ticker)
+            print(f"  [HATA] Yahoo Finance bağlantı sorunu: {e}")
+            data = None
+            
+        # 2. Kalite Kontrolü ve Fallback Kararı
+        is_valid = False
+        if data is not None and not data.empty:
+            is_valid = self._check_data_quality(data, ticker)
+            
+        if not is_valid:
+            print(f"  [UYARI] Birincil kaynak başarısız veya kalitesiz. Fallback devreye giriyor...")
+            data = self._fetch_fallback(ticker)
+            
+        return data
     
     def resample_to_weekly(self, data):
         """Günlük OHLCV verisini haftalık periyoda dönüştürür."""

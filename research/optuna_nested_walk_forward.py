@@ -7,9 +7,26 @@ import lightgbm as lgb
 from sklearn.model_selection import TimeSeriesSplit
 import matplotlib.pyplot as plt
 import optuna.visualization as vis
+import joblib
+from datetime import datetime
 
 # Proje Kök Dizini
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.dirname(_SCRIPT_DIR)
+sys.path.append(_REPO_ROOT)
+
+# İlerleme logu (arka planda çalışırken nerede kaldığını görmek için)
+_OPTUNA_LOG_DIR = os.path.join(_REPO_ROOT, "logs", "optuna")
+_OPTUNA_PROGRESS_LOG = os.path.join(_OPTUNA_LOG_DIR, "progress.txt")
+
+def _progress_log(msg):
+    try:
+        os.makedirs(_OPTUNA_LOG_DIR, exist_ok=True)
+        with open(_OPTUNA_PROGRESS_LOG, "a", encoding="utf-8") as f:
+            f.write(f"[{datetime.now().isoformat()}] {msg}\n")
+            f.flush()
+    except Exception:
+        pass
 
 import config
 from utils.data_loader import DataLoader
@@ -124,6 +141,7 @@ def get_volatility_adjusted_size(current_vol, avg_vol, base_size=1.0):
 
 def load_data():
     """Tüm veriyi yükler, işler ve 'tarih sıralı' tek bir DF olarak döndürür."""
+    _progress_log("load_data: start")
     print("Loading Data (2015-Now)...")
     loader = DataLoader(start_date="2015-01-01")
     tickers = config.TICKERS
@@ -159,6 +177,7 @@ def load_data():
     full_data = pd.concat(all_frames)
     full_data.sort_index(inplace=True)
     
+    _progress_log(f"load_data: done rows={len(full_data)} dates={full_data.index.nunique()}")
     print(f"Data Loaded: {len(full_data)} rows. Unique dates: {len(full_data.index.unique())}")
     return full_data
 
@@ -491,7 +510,9 @@ def run_single_ticker_strategy(preds, actuals, data, ticker=None):
     return {'trades': trades, 'returns': returns}
 
 def optimize_and_test_per_year(dry_run=False):
+    _progress_log("optimize_and_test_per_year: start")
     full_data = load_data()
+    _progress_log("optimize_and_test_per_year: load_data done")
     
     test_years = [2023, 2024] if dry_run else [2020, 2021, 2022, 2023, 2024]
     if dry_run: print("DRY RUN MODE: Testing 2023-2024 only with reduced trials.")
@@ -500,6 +521,7 @@ def optimize_and_test_per_year(dry_run=False):
     all_daily_returns_list = []
     
     for test_year in test_years:
+        _progress_log(f"optimize: test_year={test_year} start")
         print(f"\n{'='*60}")
         print(f"TEST YILI: {test_year}")
         print(f"{'='*60}")
@@ -526,6 +548,7 @@ def optimize_and_test_per_year(dry_run=False):
             timeout=1800 if dry_run else 3600
         )
         
+        _progress_log(f"optimize: test_year={test_year} done best_value={study.best_value:.4f}")
         print(f"Best CV Sharpe: {study.best_value:.4f}")
         
         # Final Train
@@ -581,6 +604,18 @@ def optimize_and_test_per_year(dry_run=False):
         combined_daily_returns.to_csv("reports/daily_returns_concatenated.csv", header=True)
         print("\n✅ Daily Returns Saved: reports/daily_returns_concatenated.csv")
     
+    # Save best params (by test_sharpe) for production LightGBM ranker
+    if not df_res.empty:
+        try:
+            best_row = df_res.sort_values('test_sharpe', ascending=False).iloc[0]
+            best_params_global = best_row['best_params']
+            os.makedirs("models/saved", exist_ok=True)
+            joblib.dump(best_params_global, "models/saved/optimized_lgbm_params.joblib")
+            print("\n✅ Best LightGBM params saved to models/saved/optimized_lgbm_params.joblib")
+        except Exception as e:
+            print(f"\n⚠️ Failed to save optimized params: {e}")
+    
+    _progress_log("optimize_and_test_per_year: DONE")
     print("\nDONE.")
     print(df_res[['test_year', 'cv_sharpe', 'test_sharpe', 'test_return', 'test_drawdown', 'win_rate']])
 

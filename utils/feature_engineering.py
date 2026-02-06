@@ -732,6 +732,81 @@ class FeatureEngineer:
 
         # Macro Interaction (Sektör + makro featurelar oluştuktan sonra)
         self.add_macro_interaction_features()
+
+        # YENİ: TFT için özel feature'lar (Temizlikten önce ekle)
+        self.add_transformer_features()
+        
+        # Robustness: Clean Inf
+        self.data.replace([np.inf, -np.inf], np.nan, inplace=True)
         
         self.clean_data()
         return self.data
+
+    def add_transformer_features(self):
+        """TFT için özel feature'lar"""
+        df = self.data
+        
+        # 1. Zamansal feature'lar (TFT bunları sever - var olanların üzerine ek/kontrol)
+        if 'DayOfWeek' not in df.columns: df['DayOfWeek'] = df.index.dayofweek
+        if 'Month' not in df.columns: df['Month'] = df.index.month
+        if 'Quarter' not in df.columns: df['Quarter'] = df.index.quarter
+        
+        # 2. Makro şok göstergeleri (Eğer makro veriler varsa)
+        if 'usdtry' in df.columns: # Küçük harf standart
+            df['usdtry_shock'] = (df['usdtry'].pct_change() > 0.02).astype(int)
+        elif 'USDTRY' in df.columns: # Büyük harf standart
+            df['usdtry_shock'] = (df['USDTRY'].pct_change() > 0.02).astype(int)
+            
+        if 'vix' in df.columns:
+            df['vix_high'] = (df['vix'] > 25).astype(int)
+        elif 'VIX' in df.columns:
+            df['vix_high'] = (df['VIX'] > 25).astype(int)
+            
+        # 3. Trend strength
+        if 'SMA_20' in df.columns:
+            df['price_vs_sma20'] = df['Close'] / df['SMA_20'] - 1
+            
+        if 'Volume' in df.columns:
+            vol_ma = df['Volume'].rolling(20).mean()
+            # Avoid division by zero
+            df['volume_surge'] = df['Volume'] / (vol_ma + 1e-9)
+            
+        self.data = df
+        return df
+
+def prepare_tft_dataset(df, lookback=60):
+    """
+    TFT modeli için dataset konfigürasyonunu hazırlar.
+    df: (timestamp, features) DataFrame - MultiIndex veya Single Index olabilir.
+    lookback: Kaç günlük geçmiş kullanılacak
+    """
+    
+    # Statik feature'lar (hisse bazında sabit - eğer varsa)
+    static_features = []
+    if 'Sector' in df.columns: static_features.append('Sector')
+    
+    # Zamansal feature'lar (her gün değişen - bilinen)
+    time_varying_known = ['DayOfWeek', 'Month']
+    # Check flexible names
+    for col in ['usdtry', 'USDTRY', 'vix', 'VIX', 'usdtry_shock', 'vix_high']:
+        if col in df.columns:
+            time_varying_known.append(col)
+    
+    # Zamansal feature'lar (her gün değişen - bilinmeyen/tahmin edilecek)
+    # Fiyat ve teknik indikatörler
+    potential_unknowns = ['Close', 'Volume', 'RSI', 'MACD', 'price_vs_sma20', 'volume_surge', 'Log_Return', 'Volatility_20']
+    time_varying_unknown = [c for c in potential_unknowns if c in df.columns]
+    
+    # Target
+    target = 'Excess_Return' 
+    if target not in df.columns and 'NextDay_Return' in df.columns:
+        target = 'NextDay_Return'
+    
+    return {
+        'static': static_features,
+        'known': time_varying_known,
+        'unknown': time_varying_unknown,
+        'target': target,
+        'max_encoder_length': lookback,  # Geçmiş
+        'max_prediction_length': 1       # 1 gün sonrasını tahmin
+    }

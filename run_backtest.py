@@ -35,26 +35,32 @@ def main():
         if args.model == 'lightgbm':
              ranker = RankingModel.load("models/saved/global_ranker.pkl", config_banking)
         elif args.model == 'catboost':
+             # Deprecated or optional
              from models.ranking_model_catboost import CatBoostRankingModel
              ranker = CatBoostRankingModel.load("models/saved/global_ranker_catboost.cbm", config_banking)
         elif args.model == 'ensemble':
-             from models.ranking_model_catboost import CatBoostRankingModel
-             from models.ensemble_model import EnsembleModel
-             lgbm = RankingModel.load("models/saved/global_ranker.pkl", config_banking)
-             cat = CatBoostRankingModel.load("models/saved/global_ranker_catboost.cbm", config_banking)
+             from models.ensemble_model import HybridEnsemble
+             # Load Hybrid Ensemble (LGBM loaded inside, TFT requires path/config)
+             # Assuming weights are managed inside HybridEnsemble or loaded here
+             ranker = HybridEnsemble()
              
-             # Load best weights if exist, else default
-             weights = {'lgbm': 0.5, 'catboost': 0.5}
-             if os.path.exists("models/saved/ensemble_weights.joblib"):
-                 weights = joblib.load("models/saved/ensemble_weights.joblib")
-                 print(f"✅ Ensemble weights loaded: {weights}")
+             # Fallback paths - In production these should be in config
+             lgbm_path = "models/saved/global_ranker.pkl"
+             tft_path = "models/saved/tft_model.pth" # Corrected based on list_dir
              
-             ranker = EnsembleModel(lgbm, cat, weights)
+             # Load models
+             # Note: TFT config loading might be needed if not default
+             ranker.load_models(lgbm_path, tft_path)
+             
+             print(f"✅ Hybrid Ensemble (LightGBM + TFT) loaded.")
              
         if ranker is None: raise FileNotFoundError
         print(f"✅ {args.model.upper()} Ranking Model loaded.")
     except Exception as e:
         print(f"❌ {args.model.upper()} Model NOT found or error: {e}")
+        # traceback for debugging
+        import traceback
+        traceback.print_exc()
         return
 
     # 2. Load & Process All Data

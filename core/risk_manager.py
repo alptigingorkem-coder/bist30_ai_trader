@@ -30,15 +30,15 @@ class RiskManager:
             self.take_profit_mult = 3.0
             
         elif regime == 'Trend_Up': # Ralli
-            self.stop_loss_mult = 3.0 
-            self.trailing_stop_mult = 3.0 # 2.5 -> 3.0 (Daha gevşek)
-            self.take_profit_mult = 7.0
+            self.stop_loss_mult = config.ATR_STOP_LOSS_MULTIPLIER 
+            self.trailing_stop_mult = config.ATR_TRAILING_STOP_MULTIPLIER
+            self.take_profit_mult = config.ATR_TAKE_PROFIT_MULTIPLIER
         
         else:
             # Bilinmeyen rejim fallback (Trend_Up Say)
-             self.stop_loss_mult = 3.0
-             self.trailing_stop_mult = 3.0
-             self.take_profit_mult = 7.0
+             self.stop_loss_mult = config.ATR_STOP_LOSS_MULTIPLIER
+             self.trailing_stop_mult = config.ATR_TRAILING_STOP_MULTIPLIER
+             self.take_profit_mult = config.ATR_TAKE_PROFIT_MULTIPLIER
 
     def get_stop_distance(self, price, atr):
         """

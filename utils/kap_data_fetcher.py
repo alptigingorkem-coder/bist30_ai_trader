@@ -96,7 +96,8 @@ class KAPDataFetcher:
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         disclosure_type: str = 'ODA',
-        use_cache: bool = True
+        use_cache: bool = True,
+        force_live: bool = False
     ) -> pd.DataFrame:
         """
         Belirli bir hisse için KAP bildirimlerini çeker.
@@ -147,7 +148,7 @@ class KAPDataFetcher:
         
         # 3. Canlı Veri Çekme (PyKap) - Sadece explicit istek varsa
         # Backtest sırasında canlı veri çekip timeout riskine girmeyelim
-        force_live = False # Varsayılan olarak kapalı
+        # force_live = False # Varsayılan olarak kapalı (Kaldırıldı)
         
         # 3. Canlı Veri Çekme (PyKap) - STRICT OFFLINE MODE
         # Backtest sırasında canlı veri çekip timeout riskine girmeyelim.
@@ -171,10 +172,13 @@ class KAPDataFetcher:
         try:
             print(f"[KAP] {ticker} bildirimleri CANLI çekiliyor ({from_date} -> {to_date})...")
             
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(_fetch)
-                # 30 saniye timeout
-                disclosures = future.result(timeout=30)
+            # DIRECT CALL (Thread Pool Removed for Debugging)
+            company = BISTCompany(ticker=ticker.replace('.IS', ''))
+            disclosures = company.get_historical_disclosure_list(
+                fromdate=from_date,
+                todate=to_date,
+                disclosure_type=disclosure_type
+            )
             
             if disclosures:
                 self._save_cache(cache_path, disclosures)
@@ -279,7 +283,8 @@ class KAPDataFetcher:
             ticker,
             from_date=str(min_date),
             to_date=str(max_date),
-            disclosure_type='ODA'
+            disclosure_type='ODA',
+            use_cache=True # force_live argümanı fetch_disclosures metoduna eklenmemiş, manuel eklemeliyiz veya fetch_disclosures imzasını güncellemeliyiz.
         )
         
         if disclosures_df.empty:

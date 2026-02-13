@@ -14,7 +14,8 @@ class BIST30TransformerModel:
         self.dataset_params = None
         
         # GPU Check
-        self.device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        # GPU Check (Config'den al)
+        self.device = getattr(self.config, 'DEVICE', torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
         print(f"BIST30Transformer Device: {self.device}")
 
     def create_dataset(self, data, dataset_config, mode='train'):
@@ -150,7 +151,7 @@ class BIST30TransformerModel:
         print(f"DEBUG: Trainer configured for {self.device}")
         trainer = lightning.pytorch.Trainer(
             max_epochs=epochs,
-            accelerator=self.device,
+            accelerator='auto', # 'cpu', 'gpu', 'tpu', 'ipu', 'hpu', 'mps', 'auto'
             devices=1,
             gradient_clip_val=0.1,
             callbacks=[early_stop_callback, lr_logger],

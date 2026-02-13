@@ -1,4 +1,26 @@
-# Config Settings for BIST30 AI Trader - CORE ONLY STRATEGY
+import platform
+import torch
+
+def get_device():
+    # Native CUDA/ROCm öncelikli
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    
+    # Apple Silicon (MPS) Desteği (Opsiyonel)
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+
+    # DirectML (Windows için hatalı sonuç verebiliyor, PyTorch Lightning sevmez)
+    # try:
+    #     import torch_directml
+    #     return torch_directml.device()
+    # except ImportError:
+    #     pass
+
+    return torch.device("cpu")
+
+DEVICE = get_device()
+print(f"Mevcut Cihaz: {DEVICE}")
 
 # --- TIER SISTEMI (SADELEŞTİRİLMİŞ) ---
 # Sadece Tier 1 (Core) Aktif
@@ -184,7 +206,7 @@ TRAILING_STOP_ACTIVE = True
 # Portföy Yapılandırması (Konsantre & Saldırgan)
 PORTFOLIO_SIZE = 3           # 5 -> 3 (En iyi 3 hisseye gömül)
 WEIGHTING_STRATEGY = 'EqualWeight'  # RiskParity -> EqualWeight (Eşit böl, riski önemseme)
-RISK_PER_TRADE = 0.25        # %2 -> %25 (Tek işlemde sermayenin çeyreği!)        
+RISK_PER_TRADE = 0.05        # %25 -> %5 (GÜVENLİ LİMİT)        
 
 ENABLE_MOMENTUM_FILTER = False # Aggressive Mode: Filter OFF (Düşen bıçakları da tutsun)
 MAX_SINGLE_POS_WEIGHT = 0.33 # Tek bir hisseye ayrılacak max ağırlık (limit)
@@ -232,7 +254,7 @@ REGIME_THRESHOLDS = {
 
 # Macro Gate Eşikleri (AGRESİF - KAPALI)
 # Macro Gate Eşikleri (AGRESİF - KAPALI)
-ENABLE_MACRO_GATE = False  # Saldırgan mod: Market çökse de işlem yap
+ENABLE_MACRO_GATE = True   # Saldırgan mod: Market çökse de işlem yap (GÜVENLİK YAMASI İLE AÇILDI)
 # Macro Gate (Global Risk Yönetimi)
 # Macro Gate (Global Risk Yönetimi)
 MACRO_GATE_THRESHOLDS = {

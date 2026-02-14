@@ -5,6 +5,10 @@ import lightgbm as lgb
 import os
 import joblib
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class RankingModel:
     def __init__(self, data, config_module):
         self.data = data.copy()
@@ -46,15 +50,15 @@ class RankingModel:
             target_cols = [f'Excess_Return_T{win}' for win in windows]
             
             # DEBUG: Check for NaNs before drop
-            print(f"[{self.config.SECTOR_NAME}] Data Shape Before Drop: {df.shape}")
-            print(f"[{self.config.SECTOR_NAME}] Target Cols: {target_cols}")
+            log.info(f"[{self.config.SECTOR_NAME}] Data Shape Before Drop: {df.shape}")
+            log.info(f"[{self.config.SECTOR_NAME}] Target Cols: {target_cols}")
             
             # Check for columns that are ALL NaN
             nan_counts = df[feature_cols + target_cols].isnull().sum()
             all_nan_cols = nan_counts[nan_counts == len(df)].index.tolist()
             if all_nan_cols:
-                print(f"[{self.config.SECTOR_NAME}] CRITICAL: The following columns are ALL NaN: {all_nan_cols}")
-                print(f"[{self.config.SECTOR_NAME}] Dropping these columns to save data rows.")
+                log.error(f"[{self.config.SECTOR_NAME}] CRITICAL: The following columns are ALL NaN: {all_nan_cols}")
+                log.info(f"[{self.config.SECTOR_NAME}] Dropping these columns to save data rows.")
                 df.drop(columns=all_nan_cols, inplace=True)
                 # Update cols lists
                 feature_cols = [c for c in feature_cols if c not in all_nan_cols]
@@ -66,10 +70,10 @@ class RankingModel:
             
             # Check rows with NaNs
             rows_with_nan = df[feature_cols + target_cols].isnull().any(axis=1).sum()
-            print(f"[{self.config.SECTOR_NAME}] Rows with NaN: {rows_with_nan} / {len(df)}")
+            log.info(f"[{self.config.SECTOR_NAME}] Rows with NaN: {rows_with_nan} / {len(df)}")
 
             df = df.dropna(subset=feature_cols + target_cols)
-            print(f"[{self.config.SECTOR_NAME}] Data Shape After Drop: {df.shape}")
+            log.info(f"[{self.config.SECTOR_NAME}] Data Shape After Drop: {df.shape}")
             
             # Sort by Date (Important for grouping)
             df = df.sort_index(level='Date') 
@@ -130,7 +134,7 @@ class RankingModel:
             return X, None, None
 
     def train(self, valid_df=None, custom_params=None):
-        print(f"[{self.config.SECTOR_NAME}] Ranking Model Eğitimi (LambdaRank)...")
+        log.info(f"[{self.config.SECTOR_NAME}] Ranking Model Eğitimi (LambdaRank)...")
         
         X_train, y_train, q_train = self.prepare_data(is_training=True)
         
@@ -142,14 +146,14 @@ class RankingModel:
              try:
                  X_val, y_val, q_val = valid_model.prepare_data(is_training=True)
                  if X_val.empty or len(y_val) == 0:
-                     print(f"[{self.config.SECTOR_NAME}] Validation set empty after processing. Skipping validation.")
+                     log.info(f"[{self.config.SECTOR_NAME}] Validation set empty after processing. Skipping validation.")
                      eval_set = None
                      eval_group = None
                  else:
                      eval_set = [(X_val, y_val)]
                      eval_group = [q_val]
              except Exception as e:
-                 print(f"[{self.config.SECTOR_NAME}] Validation prep error: {e}. Skipping validation.")
+                 log.error(f"[{self.config.SECTOR_NAME}] Validation prep error: {e}. Skipping validation.")
                  eval_set = None
                  eval_group = None
         else:
@@ -189,7 +193,7 @@ class RankingModel:
                  max_label = max(max_label, y_eval_curr.max())
                  
         if max_label > 30:
-            print(f"[{self.config.SECTOR_NAME}] Large labels detected (max: {max_label}). Using linear label_gain to avoid error.")
+            log.error(f"[{self.config.SECTOR_NAME}] Large labels detected (max: {max_label}). Using linear label_gain to avoid error.")
             # Use linear gain (0, 1, 2, ...) to avoid overflow with exponential gain on large labels
             model.set_params(label_gain=list(range(int(max_label) + 1)))
             
@@ -208,6 +212,7 @@ class RankingModel:
         # FEATURE SELECTION: SHAP Importance
         try:
             import shap
+
             explainer = shap.TreeExplainer(model)
             # Use a sample of training data for speed
             sample_size = min(len(X_train), 500)
@@ -222,7 +227,7 @@ class RankingModel:
                 
             low_imp_features = [self.feature_names[i] for i in range(len(shap_importance)) if shap_importance[i] < 0.005]
             if low_imp_features:
-                print(f"[{self.config.SECTOR_NAME}] Low Importance Features (SHAP < 0.01): {low_imp_features[:5]}... (Total: {len(low_imp_features)})")
+                log.info(f"[{self.config.SECTOR_NAME}] Low Importance Features (SHAP < 0.01): {low_imp_features[:5]}... (Total: {len(low_imp_features)})")
                 # Auto-drop for future iterations (stateful within session)
                 self.feature_names = [f for f in self.feature_names if f not in low_imp_features]
         except Exception as e:

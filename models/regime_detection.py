@@ -35,7 +35,7 @@ class RegimeDetector:
         new_thresholds['volatility_low'] = vol_low
         new_thresholds['volatility_high'] = vol_high
         
-        print(f"  [Adaptive] Eşikler güncellendi: Low={vol_low:.2f}, High={vol_high:.2f}")
+        log.info(f"  [Adaptive] Eşikler güncellendi: Low={vol_low:.2f}, High={vol_high:.2f}")
         return new_thresholds
 
     def detect_turkey_crisis(self, df, verbose=True):
@@ -230,8 +230,8 @@ class RegimeDetector:
             df.loc[df.index[i], 'Regime_Confidence'] = regime_stability
         
         if verbose:
-            print("Rejim Dağılımı:")
-            print(df['Regime'].value_counts())
+            log.info("Rejim Dağılımı:")
+            log.info("%s", df['Regime'].value_counts())
         
         self.data = df
         return df
@@ -240,6 +240,10 @@ import lightgbm as lgb
 import optuna
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import accuracy_score, log_loss
+
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
 
 class MLRegimeClassifier:
     def __init__(self, data, lookback_window=3):
@@ -301,7 +305,7 @@ class MLRegimeClassifier:
         X, y = self.prepare_features()
         
         if len(X) < 100:
-            print("Yetersiz veri, ML eğitimi atlanıyor.")
+            log.info("Yetersiz veri, ML eğitimi atlanıyor.")
             return None
             
         def objective(trial):
@@ -348,7 +352,7 @@ class MLRegimeClassifier:
                 
             return np.mean(scores)
 
-        print("Regime Classifier Hiperparametre Optimizasyonu Başlıyor...")
+        log.info("Regime Classifier Hiperparametre Optimizasyonu Başlıyor...")
         study = optuna.create_study(direction='minimize')
         study.optimize(objective, n_trials=n_trials)
         
@@ -361,7 +365,7 @@ class MLRegimeClassifier:
             'n_estimators': 500
         })
         
-        print(f"En iyi parametreler: {self.best_params}")
+        log.info(f"En iyi parametreler: {self.best_params}")
         
         # Final Model Eğitimi (Tüm veri ile)
         dtrain = lgb.Dataset(X, label=y)

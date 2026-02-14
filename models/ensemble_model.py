@@ -7,6 +7,10 @@ import torch
 
 import config
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class HybridEnsemble:
     def __init__(self, lgbm_model=None, tft_model=None):
         self.lgbm = lgbm_model
@@ -16,31 +20,35 @@ class HybridEnsemble:
         lgbm_w = getattr(config, 'HYBRID_WEIGHT', 0.6)
         tft_w = 1.0 - lgbm_w
         self.weights = {'lgbm': lgbm_w, 'tft': tft_w}
-        print(f"DEBUG: Hybrid Weights set to: {self.weights}")
+        log.debug(f"DEBUG: Hybrid Weights set to: {self.weights}")
         
     def load_models(self, lgbm_path, tft_path, tft_config=None):
         """Eğitilmiş modelleri yükler"""
         # LightGBM (RankingModel) yükle
         from models.ranking_model import RankingModel
         self.lgbm = RankingModel.load(lgbm_path)
-        print(f"✅ LightGBM modeli yüklendi: {lgbm_path}")
+        log.info(f"✅ LightGBM modeli yüklendi: {lgbm_path}")
         
         # TFT Model yükle
-        if tft_config:
-            from models.transformer_model import BIST30TransformerModel
-            # Yeni instance oluştur
-            self.tft_wrapper = BIST30TransformerModel(tft_config)
-            # Modeli yükle (Architecture dataset'ten gelmeliydi ama burada state dict yükleyeceğiz)
-            # NOT: TFT load işlemi dataset parametrelerini gerektirir. 
-            # Bu yüzden eğitimden sonra tüm modeli (pickle) veya parametreleri kaydetmek daha iyi.
-            # Şimdilik placeholder.
-            pass
+        if tft_config and tft_path:
+            try:
+                from models.transformer_model import BIST30TransformerModel
+                # Yeni instance oluştur
+                self.tft_wrapper = BIST30TransformerModel(tft_config)
+                # Modeli yükle
+                self.tft_wrapper.load(tft_path)
+                self.tft = self.tft_wrapper
+                log.info(f"✅ TFT modeli yüklendi: {tft_path}")
+            except Exception as e:
+                log.error(f"❌ TFT Model yüklenemedi: {e}")
+                self.tft = None
             
-    def predict(self, df, tft_dataset=None):
+    def predict(self, df, tft_dataset=None, backtest=False):
         """
         Tahminleri birleştirir.
         df: LightGBM için DataFrame
         tft_dataset: TFT için TimeSeriesDataSet veya DataLoader
+        backtest: True ise TFT'den tüm geçmiş tahminleri ister.
         """
         if self.lgbm is None:
             raise ValueError("LightGBM modeli yüklü değil.")
@@ -52,8 +60,18 @@ class HybridEnsemble:
         tft_pred = None
         if self.tft:
             # TFT wrapper üzerinden tahmin al
-            # Eğer self.tft bir wrapper instance ise:
-            tft_pred = self.tft.predict(df) # Wrapper handle data conversion hopefully
+            # self.tft bir BIST30TransformerModel instance'ı
+            try:
+                # TFT (PyTorch Forecasting) sütun isimlerinde '.' sevmez ve '_' bekler.
+                # Ancak LGBM '.' ile eğitilmiş olabilir.
+                # Bu yüzden TFT'ye özel sütun isimlerini temizliyoruz.
+                df_tft = df.copy()
+                df_tft.columns = df_tft.columns.str.replace(".", "_", regex=False)
+                
+                tft_pred = self.tft.predict(df_tft, backtest=backtest) 
+            except Exception as e:
+                log.error(f"TFT Tahmin hatası: {e}")
+                tft_pred = None
             # Tensor to numpy
             if isinstance(tft_pred, torch.Tensor):
                 tft_pred = tft_pred.cpu().numpy()
@@ -65,10 +83,23 @@ class HybridEnsemble:
         if tft_pred is None:
             return lgbm_pred
             
-        # Uzunluk kontrolü
-        min_len = min(len(lgbm_pred), len(tft_pred))
-        lgbm_pred = lgbm_pred[:min_len]
-        tft_pred = tft_pred[:min_len]
+        # 3. Hizalama (Alignment)
+        # TFT geçmiş veriyi (encoder_length) kullandığı için başlangıç kısmında tahmin üretmez.
+        # Bu yüzden tft_pred, lgbm_pred'den kısa olabilir.
+        # Tahminlerin "sondan" hizalanması gerekir.
+        
+        n_lgbm = len(lgbm_pred)
+        n_tft = len(tft_pred)
+        
+        if n_tft < n_lgbm:
+            # TFT daha kısa (beklenen durum), son n_tft tanesini al
+            lgbm_pred = lgbm_pred[-n_tft:]
+        elif n_lgbm < n_tft:
+            # LGBM daha kısa (beklenmez ama safety)
+            tft_pred = tft_pred[-n_lgbm:]
+            
+        # Şimdi uzunluklar eşit
+
         
         # 3. Ağırlıklı Ortalama
         # Normalizasyon gerekebilir (Rank vs Return)
@@ -79,6 +110,7 @@ class HybridEnsemble:
         # Basitlik için Rank Averaging yapalım:
         
         from scipy.stats import rankdata
+
         rank_lgbm = rankdata(lgbm_pred)
         rank_tft = rankdata(tft_pred)
         
@@ -93,10 +125,12 @@ class HybridEnsemble:
         
         return ensemble_score
     
+    # TODO: Optimizasyon (Fase 5)
+    # Gelecekte validation set üzerinde ağırlıkları (LGBM vs TFT) dinamik optimize eden kod buraya gelecek.
     def optimize_weights(self, val_df, val_target):
         """
         Validation set üzerinde en iyi ağırlıkları bulur (Maximize Sharpe or Correlation).
         Şimdilik basit bir placeholder.
         """
-        print("Optimizasyon henüz aktif değil, varsayılan ağırlıklar kullanılacak.")
+        log.info("Optimizasyon henüz aktif değil, varsayılan ağırlıklar kullanılacak.")
         pass

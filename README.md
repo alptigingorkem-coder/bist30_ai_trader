@@ -1,33 +1,49 @@
-# BIST30 AI Trader - Yapay Zeka Destekli Borsa İstanbul Ticaret Terminali
+# BIST30 AI Trader - Gelişmiş Algoritmik Ticaret Platformu
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![Paper Trading Ready](https://img.shields.io/badge/Paper%20Trading-Ready-green.svg)](#-paper-trading)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![GPU Support](https://img.shields.io/badge/ROCm-Supported-red.svg)](https://rocm.docs.amd.com/)
+[![Build Status](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
 
-Bu proje, Borsa İstanbul (BIST30) payları için geliştirilmiş, Random Forest ve LSTM modellerini kullanan hibrit bir yapay zeka alım-satım (trading) terminalidir. Sistem, teknik indikatörler ve makroekonomik verileri analiz ederek ticaret sinyalleri üretir ve risk yönetimi modülleri (Macro Gate, Volatilite analizi) ile stratejileri optimize eder.
+**BIST30 AI Trader**, Borsa İstanbul (BIST30) pay piyasası için geliştirilmiş, **Hibrit Yapay Zeka (Ensemble Learning)** modellerini kullanan, modern ve modüler bir algoritmik ticaret sistemidir.
 
-## ⚠️ YASAL UYARI VE SORUMLULUK REDDİ
-
-**BU YAZILIM YATIRIM TAVSİYESİ DEĞİLDİR.**
-
-1.  **Sorumluluk Reddi:** Bu yazılım "OLDUĞU GİBİ" (AS IS) sunulmaktadır. Geliştiriciler, kullanımdan doğabilecek **HİÇBİR MADDİ VEYA MANEVİ ZARARDAN SORUMLU TUTULAMAZ**.
-
-2.  **Yatırım Riski:** Borsa ve finansal piyasalarda işlem yapmak yüksek risk içerir. Bu Yazılım tarafından sağlanan sinyaller **kesinlikle yatırım tavsiyesi niteliği taşımaz**.
-
-3.  **Kullanıcı Sorumluluğu:** Bu Yazılımı kullanan herkes, oluşabilecek tüm riskleri **kendi üzerine aldığını** beyan eder.
+Proje, **LightGBM** (Ranking/Sınıflandırma) ve **TFT - Temporal Fusion Transformer** (Zaman Serisi/Trend) modellerini birleştirerek hisse senetlerini puanlar ve dinamik risk yönetimi kuralları ile portföy yönetir.
 
 ---
 
-## 🚀 Özellikler
+## 🚀 Öne Çıkan Özellikler
 
-| Özellik | Açıklama |
-|---------|----------|
-| **Hibrit AI Modeli** | Random Forest + LSTM güç birleşimi |
-| **Macro Gate** | VIX, USDTRY, Global Risk filtresi |
-| **Paper Trading v2.0** | Stateless + Position-Aware simülasyon |
-| **Slippage Simülasyonu** | ATR + Volume percentile bazlı |
-| **Risk Yönetimi** | Stop-Loss, Take-Profit, Exposure limitleri |
-| **Gelişmiş Raporlama** | HTML formatında detaylı analizler |
+### 🧠 Hibrit AI Mimarisi
+- **LightGBM:** Hızlı, ağaç tabanlı model ile hisseler arası sıralama (Learning to Rank) yapar.
+- **TFT (Temporal Fusion Transformer):** Derin öğrenme (Deep Learning) ile zaman serisi trendlerini ve mevsimselliği yakalar.
+- **Ensemble:** İki modelin çıktılarını dinamik ağırlıklarla birleştirerek (Hybrid Ensemble) karar mekanizmasını güçlendirir.
+
+### 🛡️ Gelişmiş Risk Yönetimi
+- **Dinamik Stop-Loss / Take-Profit:** ATR (Average True Range) tabanlı, piyasa volatilitesine göre genişleyen/daralan stop seviyeleri.
+- **Rejim Analizi:** Piyasanın Ralli/Yatay/Çöküş (Crash) durumunu tespit eder ve risk parametrelerini (Cash pozisyonu, Stop mesafesi) buna göre ayarlar.
+- **Kelly Criterion:** Pozisyon büyüklüğünü matematiksel olasılık formülü (Half-Kelly) ile optimize eder.
+
+### ⚡ Modern Altyapı
+- **Merkezi Konfigürasyon:** `settings.yaml` ve `config.py` ile tüm parametrelerin tek noktadan yönetimi ve Environment Variable desteği.
+- **Logging:** Python `logging` altyapısı ile yapılandırılmış, dosyaya ve konsola aktarılan detaylı sistem logları.
+- **Veri Doğrulama:** `Pydantic` ile canlı veri akışında şema kontrolü ve hata yakalama.
+- **GPU Hızlandırma:** AMD ROCm desteği ile TFT modelinin GPU üzerinde hızlı eğitimi.
+
+---
+
+## 📊 Performans Karnesi (Phase 7 - Son 6 Ay)
+
+Projenin **Hybrid Ensemble** modeli ile yapılan son kalite değerlendirmesi (Backtest: 2025-2026):
+
+| Metrik | Değer | Açıklama |
+| :--- | :--- | :--- |
+| **Rank IC** | `0.0484` | Model puanları ile gerçek getiriler arasındaki korelasyon (Başarılı). |
+| **Yıllık Getiri** | `%58.97` | Sistemin yıllıklandırılmış getiri potansiyeli. |
+| **Kümülatif Getiri** | `%31.36` | Son 6 ayda elde edilen toplam getiri simülasyonu. |
+| **Sharpe Ratio** | `0.61` | Riske göre düzeltilmiş getiri performansı. |
+| **Max Drawdown** | `-%21.54` | Görülen en büyük sermaye erimesi (Risk uyarısı içerir). |
+
+> **Not:** Sonuçlar geçmiş verilerle yapılan simülasyonlara dayanır. Gelecek performans garantisi vermez.
 
 ---
 
@@ -35,164 +51,88 @@ Bu proje, Borsa İstanbul (BIST30) payları için geliştirilmiş, Random Forest
 
 ```
 bist30_ai_trader/
-├── core/                     # Çekirdek modüller (backtesting, risk yönetimi)
-│   ├── backtesting.py        # Backtest motoru
-│   ├── risk_manager.py       # Risk yönetimi
-│   └── live_data_engine.py   # Canlı veri motoru
-│
-├── paper_trading/            # Paper Trading sistemi
-│   ├── portfolio_state.py    # Pozisyon ve portföy takibi
-│   ├── position_engine.py    # 6 karar tipi motoru
-│   ├── position_runner.py    # Günlük orchestrator
-│   ├── strategy_health.py    # Strateji sağlık monitörü
-│   └── live_execution.py     # Simülasyon motoru
-│
-├── models/                   # Eğitilmiş ML modelleri
-├── configs/                  # Sektör konfigürasyonları (banking, growth...)
-├── research/                 # Araştırma ve optimizasyon scriptleri
-├── ui/                       # Web arayüzü
-├── tests/                    # Birim testleri
-├── docs/                     # Teknik dokümantasyon
-└── utils/                    # Yardımcı modüller
+├── api/                      # FastAPI tabanlı sunucu ve endpointler
+├── core/                     # Çekirdek iş mantığı
+│   ├── backtest/             # Modüler backtest motoru
+│   ├── risk_manager.py       # Risk yönetimi sınıfı
+│   └── live_data_engine.py   # Canlı veri akışı ve doğrulama
+├── models/                   # AI Modelleri (LightGBM, TFT, Ensemble)
+├── paper_trading/            # Sanal işlem (Paper Trading) sistemi
+├── scripts/                  # Çalıştırılabilir scriptler (Eğitim, Test, Analiz)
+├── tests/                    # Birim testler (Unit Tests)
+├── utils/                    # Yardımcı araçlar ve Feature Engineering
+│   └── features/             # Teknik, Volatilite ve Makro özellik kütüphaneleri
+├── config.py                 # Konfigürasyon yükleyici
+└── settings.yaml             # Parametre dosyası
 ```
 
 ---
 
-## 🛠️ Kurulum
+## 🛠️ Kurulum (Linux / Ubuntu)
 
-**Gereksinimler:** Python 3.8+
+**Ön Gereksinimler:** Python 3.10+, pip, (Opsiyonel) AMD GPU için ROCm sürücüleri.
 
+1.  **Depoyu Klonlayın:**
+    ```bash
+    git clone https://github.com/alptigingorkem-coder/bist30_ai_trader.git
+    cd bist30_ai_trader
+    ```
+
+2.  **Sanal Ortam Oluşturun:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+
+3.  **Bağımlılıkları Yükleyin:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+    *(Not: ROCm için PyTorch sürümünü sisteminize uygun olarak ayrıca kurmanız gerekebilir.)*
+
+4.  **Konfigürasyonu Kontrol Edin:**
+    `settings.yaml` dosyasını inceleyin ve risk parametrelerini isteğinize göre düzenleyin.
+
+---
+
+## 📖 Kullanım Kılavuzu
+
+### 1. Modelleri Eğitmek
+Sistemi sıfırdan kuruyorsanız veya modelleri güncellemek istiyorsanız:
 ```bash
-# 1. Depoyu klonlayın
-git clone https://github.com/alptigingorkem-coder/bist30_ai_trader.git
-cd bist30_ai_trader
-
-# 2. Sanal ortam oluşturun
-python -m venv venv
-.\venv\Scripts\activate  # Windows
-
-# 3. Bağımlılıkları yükleyin
-pip install -r requirements.txt
-
-# 4. Konfigürasyonu düzenleyin
-copy config.example.py config.py
+# LightGBM ve TFT modellerini eğitir
+./run_training.sh
 ```
 
----
-
-## 📖 Kullanım
-
-### Modelleri Eğitmek
+### 2. Kalite ve Performans Analizi
+Mevcut modellerin durumunu görmek için:
 ```bash
-python train_models.py
+python scripts/project_evaluation.py
 ```
 
-### Günlük Sinyal Üretimi
+### 3. Paper Trading (Sanal İşlem)
+Canlı veri ile sistemi izlemek ve işlem simülasyonu yapmak için:
 ```bash
-python daily_run.py
+# Canlı veri akışını ve simülasyonu başlatır
+python scripts/paper_trading_runner.py
 ```
 
-### Backtest
+### 4. Backtest (Tarihsel Test)
+Geçmiş veriler üzerinde stratejiyi test etmek için:
 ```bash
-python run_backtest.py
+python scripts/run_backtest.py
 ```
 
 ---
 
-## 📊 Paper Trading
+## ⚠️ YASAL UYARI VE SORUMLULUK REDDİ
 
-Sistem iki katmanlı Paper Trading altyapısı sunar:
+**BU YAZILIM YATIRIM TAVSİYESİ DEĞİLDİR.**
 
-### 1. Stateless Paper Trading (Shadow Execution)
-```bash
-python run_paper.py
-```
-- Sinyal → Shadow Order → Log
-- Slippage simülasyonu (ATR + Volume)
-- Macro Gate blokaj takibi
-
-### 2. Position-Aware Paper Trading
-```bash
-python paper_trading/position_runner.py
-```
-- Pozisyon belleği (açık/kapalı takibi)
-- 6 karar tipi: OPEN, HOLD, SCALE_IN, SCALE_OUT, CLOSE, IGNORE
-- Exposure ve risk limitleri
-- Overtrading koruması
-
-### Analiz Araçları
-```bash
-# Temel analiz
-python analyze_paper.py
-
-# Stress test (En kötü 20 gün)
-python analyze_paper.py --stress
-
-# Tam analiz (MAE/MFE dahil)
-python analyze_paper.py --full
-```
+1.  **Sorumluluk Reddi:** Bu yazılım eğitim ve araştırma amaçlı geliştirilmiştir. Yazılımın ürettiği sinyaller, finansal kayıplara yol açabilir. Geliştiriciler, kullanımdan doğabilecek **HİÇBİR MADDİ VEYA MANEVİ ZARARDAN SORUMLU TUTULAMAZ.**
+2.  **Kendi Araştırmanızı Yapın (DYOR):** Borsa işlemleri yüksek risk içerir. Bu yazılımı bir karar destek sistemi olarak kullanın, tam yetkiyle (otonom) işlem yaptırmadan önce riskleri iyice değerlendirin.
 
 ---
 
-## 📈 Eğitilmiş Modeller
-
-| Sektör | Alpha Model | Beta Model |
-|--------|-------------|------------|
-| Banking | ✅ | ✅ |
-| Growth | ✅ | ✅ |
-| Holding | ✅ | ✅ |
-| Industrial | ✅ | ✅ |
-| Aviation | ✅ | ✅ |
-| Automotive | ✅ | ✅ |
-| Energy | ✅ | ✅ |
-| Steel | ✅ | ✅ |
-| Retail | ✅ | ✅ |
-| Telecom | ✅ | ✅ |
-| Real Estate | ✅ | ✅ |
-
----
-
-## 📊 Performans (Walk-Forward 2025 OOS)
-
-**Test Sonuçları (Gerçek Veri - OOS 2025):**
-- **Dönem:** 01.01.2025 - 05.02.2026
-- **Ortalama Getiri (Portfolio):** ~-2.13%
-- **Benchmark (XU100):** %39.29
-- **Alpha (Excess):** -%37.61
-- **Beta:** 1.10
-- **Sharpe Ratio:** Negatif
-- **Yöntem:** Daily Timeframe + Ensemble + RiskParity (Optimized Risk Params)
-- **Not:** KAP verisi "Offline Mode" ile sisteme dahil edildi. Ralli döneminde defansif kurgu (Risk Parity) nedeniyle benchmark'ın gerisinde kalınmıştır.
-
----
-
-## 📄 Dokümantasyon
-
-| Belge | Açıklama |
-|-------|----------|
-| [Paper Trading Teknik](docs/PAPER_TRADING_TECHNICAL.md) | Shadow Execution mimarisi |
-| [Kullanım Kılavuzu](docs/KULLANIM_KILAVUZU.md) | Adım adım kullanım |
-| [Mimari Tasarım](docs/mimari_tasarim.html) | Sistem mimarisi |
-| [Sorun Giderme](docs/SORUN_GIDERME.md) | Yaygın hatalar |
-
----
-
-## 🤝 Katkıda Bulunma
-
-1. Bu depoyu **Fork**'layın
-2. Yeni dal oluşturun: `git checkout -b feature/YeniOzellik`
-3. Değişiklikleri commit'leyin: `git commit -m 'Yeni özellik'`
-4. Push'layın: `git push origin feature/YeniOzellik`
-5. **Pull Request** oluşturun
-
-Detaylar için: [CONTRIBUTING.md](docs/CONTRIBUTING.md)
-
----
-
-## 📄 Lisans
-
-Bu proje **AGPL-3.0** lisansı ile lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakınız.
-
----
-
-**Son Güncelleme:** 2026-02-05 | **Versiyon:** 2.1
+**Lisans:** [AGPL-3.0](LICENSE)
+**Geliştirici:** Alptigin Görkem

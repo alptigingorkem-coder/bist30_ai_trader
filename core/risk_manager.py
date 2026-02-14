@@ -94,3 +94,64 @@ class RiskManager:
             return 'SELL', 'TAKE_PROFIT'
             
         return 'HOLD', None
+
+    def calculate_position_size(self, capital, price, atr, win_rate=0.55, win_loss_ratio=2.0):
+        """
+        Kelly Criterion (Half-Kelly) ile pozisyon büyüklüğü hesaplar.
+        f = (p * b - q) / b
+        p: Win Rate
+        b: Win/Loss Ratio
+        q: Loss Rate (1-p)
+        """
+        if atr <= 0 or price <= 0: return 0.0
+        
+        # 1. Kelly Oranı Hesapla
+        p = win_rate
+        b = win_loss_ratio
+        q = 1 - p
+        
+        kelly_fraction = (p * b - q) / b
+        
+        # 2. Negatif Kelly (Beklenti < 0) -> İşlem Yapma
+        if kelly_fraction <= 0:
+            return 0.0
+            
+        # 3. Half-Kelly (Güvenlik Payı)
+        # Tam Kelly çok risklidir ve volatilite yaratır. Yarısı kadar risk alıyoruz.
+        safe_fraction = kelly_fraction * 0.5
+        
+        # 4. Maksimum Risk Sınırı (Portföyün %20'sinden fazlasını tek hisseye bağlama)
+        # Bu config'den de gelebilir ama buraya hardcoded güvenlik ekliyoruz.
+        MAX_ALLOCATION = 0.20
+        allocation = min(safe_fraction, MAX_ALLOCATION)
+        
+        # 5. Volatilite Bazlı Düzeltme (Risk Parity benzeri)
+        # Eğer hisse çok volatilse (ATR yüksekse), pozisyonu küçült.
+        # Stop mesafesi portföyün %2'sini geçmemeli.
+        max_risk_per_trade = capital * 0.02 # %2 Risk Kuralı
+        stop_distance = atr * self.stop_loss_mult
+        
+        if stop_distance > 0:
+            vol_based_size = max_risk_per_trade / stop_distance
+            # Fiyat bazlı lot sayısı
+            # vol_based_lot = vol_based_size  (Bu nakit karşılığı değil, lot sayısı olurdu ama burada capital üzerinden gidiyoruz)
+            
+            # Tutar olarak hesaplayalım:
+            # Risk = (Entry - Stop) * Lot
+            # MaxRisk = StopDist * Lot
+            # Lot = MaxRisk / StopDist
+            # PositionValue = Lot * Price
+            
+            lot_size = int(max_risk_per_trade / stop_distance)
+            position_value_vol = lot_size * price
+            
+            # Kelly Alloc vs Volatility Alloc -> Min olanı al
+            position_value_kelly = capital * allocation
+            
+            final_position_value = min(position_value_kelly, position_value_vol)
+            
+            # Lot sayısına çevir
+            final_lots = int(final_position_value / price)
+            return final_lots
+            
+        return 0

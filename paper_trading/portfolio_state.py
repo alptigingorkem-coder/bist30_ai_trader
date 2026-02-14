@@ -8,6 +8,10 @@ import os
 from datetime import datetime
 from typing import Dict, Optional, Tuple, List
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 
 class PortfolioState:
     """
@@ -370,7 +374,7 @@ class PortfolioState:
         ledger = self.get_trade_ledger()
         
         if not ledger:
-            print("⚠️ No closed trades to export")
+            log.warning("No closed trades to export")
             return filepath
         
         fieldnames = [
@@ -384,7 +388,7 @@ class PortfolioState:
             writer.writeheader()
             writer.writerows(ledger)
         
-        print(f"✅ Trade ledger exported: {filepath} ({len(ledger)} trades)")
+        log.info("Trade ledger exported: %s (%d trades)", filepath, len(ledger))
         return filepath
 
     def get_trade_statistics(self) -> dict:
@@ -558,26 +562,27 @@ class PortfolioState:
         bucket_analysis = self.get_confidence_bucket_analysis()
         signal_report = self.get_signal_accuracy_report()
         
-        print("\n" + "="*60)
-        print("📊 CONFIDENCE BUCKET ANALYSIS (FAZ 2)")
-        print("="*60)
+        log.info("=" * 60)
+        log.info("CONFIDENCE BUCKET ANALYSIS (FAZ 2)")
+        log.info("=" * 60)
         
-        print("\n🎯 Performance by Confidence Level:")
-        print(f"{'Bucket':<12} {'Count':>6} {'Win%':>8} {'Avg Ret%':>10} {'Total PnL':>12}")
-        print("-" * 50)
+        log.info("Performance by Confidence Level:")
+        log.info("%-12s %6s %8s %10s %12s", "Bucket", "Count", "Win%", "Avg Ret%", "Total PnL")
+        log.info("-" * 50)
         
         for bucket, data in bucket_analysis.items():
-            print(f"{bucket:<12} {data['count']:>6} {data['win_rate']:>7.1f}% {data['avg_return_pct']:>9.2f}% {data['total_pnl']:>11.2f}")
+            log.info("%-12s %6d %7.1f%% %9.2f%% %11.2f",
+                     bucket, data['count'], data['win_rate'], data['avg_return_pct'], data['total_pnl'])
         
-        print("\n🔍 Signal Accuracy Report:")
-        print("-" * 50)
+        log.info("Signal Accuracy Report:")
+        log.info("-" * 50)
         for key, val in signal_report.items():
             if key == "total_analyzed":
-                print(f"Total Analyzed: {val}")
+                log.info("Total Analyzed: %d", val)
                 continue
-            print(f"  {key}: {val['count']} ({val['pct']}%) - {val['description']}")
+            log.info("  %s: %d (%s%%) - %s", key, val['count'], val['pct'], val['description'])
         
-        print("="*60)
+        log.info("=" * 60)
 
     # ─────────────────────────────────────────────────────────────
     # LIVE STRESS SIMULATION (FAZ 3)
@@ -673,21 +678,21 @@ class PortfolioState:
         """Pretty print stress status"""
         status = self.get_stress_status()
         
-        print("\n" + "="*60)
-        print("🔥 LIVE STRESS STATUS (FAZ 3)")
-        print("="*60)
+        log.info("=" * 60)
+        log.info("LIVE STRESS STATUS (FAZ 3)")
+        log.info("=" * 60)
         
-        halt_icon = "🛑" if status["trading_halted"] else "✅"
-        print(f"\nTrading Status: {halt_icon} {'HALTED - ' + status['halt_reason'] if status['trading_halted'] else 'ACTIVE'}")
+        trade_status = 'HALTED - ' + status['halt_reason'] if status['trading_halted'] else 'ACTIVE'
+        log.info("Trading Status: %s", trade_status)
         
-        print(f"\n📊 Daily Stats:")
-        print(f"   Daily PnL      : {status['daily_pnl']:>10.2f} TL ({status['daily_pnl_pct']:+.2f}%)")
-        print(f"   Max Loss Left  : {status['daily_max_loss_remaining']:>10.2f} TL")
+        log.info("Daily Stats:")
+        log.info("   Daily PnL      : %10.2f TL (%+.2f%%)", status['daily_pnl'], status['daily_pnl_pct'])
+        log.info("   Max Loss Left  : %10.2f TL", status['daily_max_loss_remaining'])
         
-        print(f"\n⚡ Stress Indicators:")
-        print(f"   Consecutive L  : {status['consecutive_losses']} / {self.consecutive_loss_limit}")
-        print(f"   Exposure Mult  : {status['exposure_multiplier']*100:.0f}%")
-        print(f"   Effective Exp  : {status['effective_max_exposure']:.0f}%")
+        log.info("Stress Indicators:")
+        log.info("   Consecutive L  : %d / %d", status['consecutive_losses'], self.consecutive_loss_limit)
+        log.info("   Exposure Mult  : %.0f%%", status['exposure_multiplier'] * 100)
+        log.info("   Effective Exp  : %.0f%%", status['effective_max_exposure'])
         
-        print("="*60)
+        log.info("=" * 60)
 

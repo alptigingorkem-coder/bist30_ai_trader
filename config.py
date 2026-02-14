@@ -1,32 +1,74 @@
 import platform
+import os
 import torch
 
+from utils.logging_config import get_logger
+
+_log = get_logger(__name__)
+
+# ─────────────────────────────────────────────────────────────
+# YAML-based Settings Loader
+# ─────────────────────────────────────────────────────────────
+_SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "settings.yaml")
+_settings = {}
+
+def _load_settings():
+    """settings.yaml'ı yükle, env variable override uygula."""
+    global _settings
+    try:
+        import yaml
+        if os.path.exists(_SETTINGS_PATH):
+            with open(_SETTINGS_PATH, "r", encoding="utf-8") as f:
+                _settings = yaml.safe_load(f) or {}
+            _log.debug("settings.yaml loaded (%d top-level keys)", len(_settings))
+        else:
+            _log.warning("settings.yaml not found, using hardcoded defaults")
+    except ImportError:
+        _log.warning("PyYAML not installed, using hardcoded defaults")
+    except Exception as e:
+        _log.error("settings.yaml load error: %s", e)
+
+def _cfg(section: str, key: str, default=None):
+    """
+    Config değeri al: settings.yaml > env variable > hardcoded default.
+    Env override: BIST_{SECTION}_{KEY} (büyük harf).
+    """
+    env_key = f"BIST_{section.upper()}_{key.upper()}"
+    env_val = os.environ.get(env_key)
+    if env_val is not None:
+        # Tip dönüşümü
+        if isinstance(default, bool):
+            return env_val.lower() in ("true", "1", "yes")
+        if isinstance(default, int):
+            return int(env_val)
+        if isinstance(default, float):
+            return float(env_val)
+        return env_val
+    
+    sect = _settings.get(section, {})
+    if isinstance(sect, dict) and key in sect:
+        return sect[key]
+    return default
+
+_load_settings()
+
+# ─────────────────────────────────────────────────────────────
+# Device Detection
+# ─────────────────────────────────────────────────────────────
 def get_device():
-    # Native CUDA/ROCm öncelikli
     if torch.cuda.is_available():
         return torch.device("cuda")
-    
-    # Apple Silicon (MPS) Desteği (Opsiyonel)
     if torch.backends.mps.is_available():
-        return torch.device("mps")
-
-    # DirectML (Windows için hatalı sonuç verebiliyor, PyTorch Lightning sevmez)
-    # try:
-    #     import torch_directml
-    #     return torch_directml.device()
-    # except ImportError:
-    #     pass
-
+         return torch.device("mps")
     return torch.device("cpu")
 
 DEVICE = get_device()
-print(f"Mevcut Cihaz: {DEVICE}")
+_log.info("Mevcut Cihaz: %s", DEVICE)
 
 # --- TIER SISTEMI (SADELEŞTİRİLMİŞ) ---
 # Sadece Tier 1 (Core) Aktif
 # --- ABLATION STUDY CONFIG ---
-# Modelin makro verileri (VIX, USDTRY vb.) doğrudan feature olarak kullanıp kullanmayacağı
-ENABLE_MACRO_IN_MODEL = False  # Noise reduction için kapalı önerilir
+ENABLE_MACRO_IN_MODEL = _cfg("features", "enable_macro_in_model", False)
 
 TIERS = {
     'TIER_1': [
@@ -112,16 +154,15 @@ def get_sector(ticker):
 
 
 # --- TARİH VE MAKRO VERİ ---
-START_DATE = "2015-01-01" # Gerçek veri odaklı başlangıç
-END_DATE = None # Bugüne kadar al
+START_DATE = _cfg("dates", "start", "2015-01-01")
+END_DATE = None
 
 # Overfitting Önleme (Strict Split)
-# Overfitting Önleme (Strict Split)
-TRAIN_END_DATE = "2023-12-31" 
-TEST_START_DATE = "2024-01-01" # Daha uzun bir test dönemi (Ralliyi de görsün) 
+TRAIN_END_DATE = _cfg("dates", "train_end", "2023-12-31")
+TEST_START_DATE = _cfg("dates", "test_start", "2024-01-01")
 
-# KAP (Kamuyu Aydınlatma Platformu) Entegrasyonu
-ENABLE_KAP_FEATURES = True  # KAP bildirim feature'larını modele dahil et (Backtest hızı için kapalı)
+# KAP Entegrasyonu
+ENABLE_KAP_FEATURES = _cfg("features", "enable_kap_features", False)
 
 
 
@@ -138,32 +179,31 @@ MACRO_TICKERS = {
 }
 
 # --- PARAMETRELER ---
-# Zaman Periyodu
-TIMEFRAME = 'D'  # 'D' for Daily (CHANGED FROM WEEKLY)
+TIMEFRAME = 'D'
 
-# Teknik İndikatörler (Günlük Standart)
-RSI_PERIOD = 14         # Standart
-MACD_FAST = 12          # Standart
-MACD_SLOW = 26          # Standart
-MACD_SIGNAL = 9         # Standart
-BB_LENGTH = 20          # Standart
-BB_STD = 2
+# Teknik İndikatörler
+RSI_PERIOD = _cfg("indicators", "rsi_period", 14)
+MACD_FAST = _cfg("indicators", "macd_fast", 12)
+MACD_SLOW = _cfg("indicators", "macd_slow", 26)
+MACD_SIGNAL = _cfg("indicators", "macd_signal", 9)
+BB_LENGTH = _cfg("indicators", "bollinger_length", 20)
+BB_STD = _cfg("indicators", "bollinger_std", 2)
 
-# Model Target Optimizasyonu
-LABEL_TYPE = 'RawRank'       # 'RawRank', 'Quantile', 'RiskAdjusted'
-FORWARD_WINDOW = 1           # Kaç günlük getiri hedefleniyor (1-5)
-NUM_QUANTILES = 5            # Quantile ranking için grup sayısı
+# Model Target
+LABEL_TYPE = 'RawRank'
+FORWARD_WINDOW = 1
+NUM_QUANTILES = 5
 
 # Model
-MODEL_TYPE = 'ensemble'      # 'lightgbm', 'catboost', 'ensemble'
-TARGET_COL = "Excess_Return" 
-VAL_SIZE = 0.15
-LABEL_TYPE = 'Hybrid'        # 'RawRank', 'Quantile', 'Hybrid'
-HYBRID_WEIGHT = 0.85          # Daha çok raw rank odaklı (0.7 -> 0.85)
-FORWARD_WINDOWS = [1, 5]     # T+1 ve T+5
-FORWARD_WEIGHTS = [0.6, 0.4] # T+1 daha ağır
+MODEL_TYPE = _cfg("model", "type", "ensemble")
+TARGET_COL = "Excess_Return"
+VAL_SIZE = _cfg("model", "val_size", 0.15)
+LABEL_TYPE = _cfg("model", "label_type", "Hybrid")
+HYBRID_WEIGHT = _cfg("model", "hybrid_weight", 0.85)
+FORWARD_WINDOWS = _cfg("model", "forward_windows", [1, 5])
+FORWARD_WEIGHTS = _cfg("model", "forward_weights", [0.6, 0.4])
 
-# Sızıntı (Leakage) sütunları - Bunlar asla model girdisi olmamalı
+# Leakage sütunları (yapısal, YAML'e taşınmaz)
 LEAKAGE_COLS = [
     'NextDay_Close', 'NextDay_Return', 'Excess_Return', 
     'Excess_Return_RiskAdjusted', 'NextDay_XU100_Return', 
@@ -176,41 +216,33 @@ HYBRID_THRESHOLDS = {
     'ALPHA': 0.008   
 }
 
-# Risk Yönetimi (Günlük Bazlı)
-COMMISSION_RATE = 0.0025
-REBALANCE_FREQUENCY = 'W'    # 'D' (Daily), 'W' (Weekly)
-MIN_HOLDING_DAYS = 7         # 5 -> 7 (User Protoly: 7-10 gün)
-MIN_HOLDING_PERIODS = 7      
+# Risk Yönetimi
+COMMISSION_RATE = _cfg("risk", "commission_rate", 0.0025)
+REBALANCE_FREQUENCY = _cfg("risk", "rebalance_frequency", "W")
+MIN_HOLDING_DAYS = _cfg("risk", "min_holding_days", 7)
+MIN_HOLDING_PERIODS = MIN_HOLDING_DAYS
 MIN_HOLDING_BY_SECTOR = {
-    'BANKING': 1,      
-    'HOLDING': 3,      
-    'INDUSTRIAL': 2,   
-    'GROWTH': 1        
+    'BANKING': 1, 'HOLDING': 3, 'INDUSTRIAL': 2, 'GROWTH': 1
 }
-ATR_PERIOD = 14          # Standart
+ATR_PERIOD = _cfg("indicators", "atr_period", 14)
 
-# Dinamik Stop/Profit (ATR Çarpanları - Günlük için optimize edilecek, şimdilik safety)
-# Dinamik Stop/Profit (Optimize Edildi - Sıkı Takip)
-# Dinamik Stop/Profit (AGRESİF MOD - Trend Following - RESTORED STRICT)
-# Dinamik Stop/Profit (HYBRID MOD - Sıkı Risk + Uzun Kar)
-ATR_STOP_LOSS_MULTIPLIER = 3.0     # 5.0 -> 3.0 (Sıkı stop - Kayıpları kes)
-ATR_TAKE_PROFIT_MULTIPLIER = 15.0  # 20.0 -> 15.0 (Daha gerçekçi hedef)
-ATR_TRAILING_STOP_MULTIPLIER = 3.0 # 6.0 -> 3.0 (Karı koru - HEKTS vakasını önle) 
+# Dinamik Stop/Profit (ATR Çarpanları)
+ATR_STOP_LOSS_MULTIPLIER = _cfg("risk", "stop_loss_atr_mult", 3.0)
+ATR_TAKE_PROFIT_MULTIPLIER = _cfg("risk", "take_profit_atr_mult", 15.0)
+ATR_TRAILING_STOP_MULTIPLIER = _cfg("risk", "trailing_stop_atr_mult", 3.0)
 
-# Portfolio Diversification
+# Sabit limitler
+MAX_STOP_LOSS_PCT = _cfg("risk", "max_stop_loss_pct", 0.10)
+TRAILING_STOP_ACTIVE = _cfg("risk", "trailing_stop_active", True)
 
-# Sabit limitler (Sigorta olarak)
-MAX_STOP_LOSS_PCT = 0.10    # %4 -> %10 (Volatilitede patlamamak için)
-TRAILING_STOP_ACTIVE = True
+# Portföy Yapılandırması
+PORTFOLIO_SIZE = _cfg("portfolio", "size", 3)
+WEIGHTING_STRATEGY = _cfg("portfolio", "weighting", "EqualWeight")
+RISK_PER_TRADE = _cfg("risk", "risk_per_trade", 0.05)
 
-# Portföy Yapılandırması (Konsantre & Saldırgan)
-PORTFOLIO_SIZE = 3           # 5 -> 3 (En iyi 3 hisseye gömül)
-WEIGHTING_STRATEGY = 'EqualWeight'  # RiskParity -> EqualWeight (Eşit böl, riski önemseme)
-RISK_PER_TRADE = 0.05        # %25 -> %5 (GÜVENLİ LİMİT)        
-
-ENABLE_MOMENTUM_FILTER = False # Aggressive Mode: Filter OFF (Düşen bıçakları da tutsun)
-MAX_SINGLE_POS_WEIGHT = 0.33 # Tek bir hisseye ayrılacak max ağırlık (limit)
-ENABLE_RISK_SIZING = True    # Risk-based sizing aktif/pasif
+ENABLE_MOMENTUM_FILTER = _cfg("portfolio", "enable_momentum_filter", False)
+MAX_SINGLE_POS_WEIGHT = _cfg("portfolio", "max_single_pos_weight", 0.33)
+ENABLE_RISK_SIZING = _cfg("risk", "enable_risk_sizing", True)
 
 CONFIDENCE_THRESHOLDS = {
     'TIER_1': 0.30  # 0.35 -> 0.30 (Ultra Aggressive - Low Confidence OK)
@@ -240,42 +272,47 @@ SEGMENT_SETTINGS = {
     }
 }
 
-# Rejim - Optimize Edilmiş (Calmar Ratio: 31.14)
-USE_ADAPTIVE_REGIME = True # Hisse bazlı dinamik eşik kullanımı (False ise aşağıdaki sabitler kullanılır)
+# Rejim
+USE_ADAPTIVE_REGIME = _cfg("regime", "use_adaptive", True)
 
 REGIME_THRESHOLDS = {
-    "volatility_low": 0.279,     # Optimize edilmedi (kullanılmıyor)
-    "volatility_high": 0.61,     # 0.660 -> 0.61 (Daha hassas kriz tespiti)
+    "volatility_low": _cfg("regime", "volatility_low", 0.279),
+    "volatility_high": _cfg("regime", "volatility_high", 0.61),
     "cds_high": 600,
     "try_change_high": 0.0147,
-    "momentum_threshold": 49,    # 64 -> 49 (Daha erken trend onayı)
-    "min_regime_days": 2         # 6 -> 2 (Daha hızlı tepki)
+    "momentum_threshold": _cfg("regime", "momentum_threshold", 49),
+    "min_regime_days": _cfg("regime", "min_regime_days", 2)
 }
 
-# Macro Gate Eşikleri (AGRESİF - KAPALI)
-# Macro Gate Eşikleri (AGRESİF - KAPALI)
-ENABLE_MACRO_GATE = True   # Saldırgan mod: Market çökse de işlem yap (GÜVENLİK YAMASI İLE AÇILDI)
-# Macro Gate (Global Risk Yönetimi)
-# Macro Gate (Global Risk Yönetimi)
+# Macro Gate
+ENABLE_MACRO_GATE = _cfg("macro_gate", "enabled", True)
 MACRO_GATE_THRESHOLDS = {
-    'VIX_HIGH': 40.0,         # 30.0 -> 40.0 (Daha gevşek)
-    'USDTRY_CHANGE_5D': 0.05, # 0.03 -> 0.05 (Daha gevşek)
-    'SP500_MOMENTUM': -0.06   # -0.04 -> -0.06 (Daha toleranslı)
+    'VIX_HIGH': _cfg("macro_gate", "vix_high", 40.0),
+    'USDTRY_CHANGE_5D': _cfg("macro_gate", "usdtry_change_5d", 0.05),
+    'SP500_MOMENTUM': _cfg("macro_gate", "sp500_momentum", -0.06)
 }
 
-# Optimize Edilmiş Model Parametreleri (Optuna Sonucu - Round 3 - 500 Trials)
-# Veriler: 2015-2023 Train, 2023-2024 Valid. Best NDCG@5: 0.2906
+# Optimize Edilmiş LightGBM Parametreleri
 OPTIMIZED_MODEL_PARAMS = {
-    'learning_rate': 0.01538,
-    'num_leaves': 77,
-    'max_depth': 6,
-    'min_child_samples': 66,
-    'reg_alpha': 0.9187,
-    'reg_lambda': 0.4115,
-    'n_estimators': 1000, 
-    'early_stopping_rounds': 50 
+    'learning_rate': _cfg("lgbm_params", "learning_rate", 0.01538),
+    'num_leaves': _cfg("lgbm_params", "num_leaves", 77),
+    'max_depth': _cfg("lgbm_params", "max_depth", 6),
+    'min_child_samples': _cfg("lgbm_params", "min_child_samples", 66),
+    'reg_alpha': _cfg("lgbm_params", "reg_alpha", 0.9187),
+    'reg_lambda': _cfg("lgbm_params", "reg_lambda", 0.4115),
+    'n_estimators': _cfg("lgbm_params", "n_estimators", 1000),
+    'early_stopping_rounds': _cfg("lgbm_params", "early_stopping_rounds", 50)
 }
 
-# Sektör rotasyon cezası (AGRESİF - ESNEK)
-ENABLE_SECTOR_ROTATION_PENALTY = True
-MAX_SECTOR_CONCENTRATION = 0.70  # %40 -> %70 (Fırsat olan sektöre yüklenmek için)
+# TFT Parametreleri (GPU Optimized)
+TFT_LEARNING_RATE = _cfg("tft_params", "learning_rate", 0.03)
+TFT_HIDDEN_SIZE = _cfg("tft_params", "hidden_size", 128)
+TFT_ATTENTION_HEADS = _cfg("tft_params", "attention_head_size", 4)
+TFT_DROPOUT = _cfg("tft_params", "dropout", 0.15)
+TFT_HIDDEN_CONTINUOUS_SIZE = _cfg("tft_params", "hidden_continuous_size", 16)
+TFT_LSTM_LAYERS = _cfg("tft_params", "lstm_layers", 2)
+TFT_BATCH_SIZE = _cfg("tft_params", "batch_size", 128)
+
+# Sektör Rotasyonu
+ENABLE_SECTOR_ROTATION_PENALTY = _cfg("sector_rotation", "enabled", True)
+MAX_SECTOR_CONCENTRATION = _cfg("sector_rotation", "max_concentration", 0.70)

@@ -3,6 +3,10 @@ import numpy as np
 import os
 from datetime import datetime
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class FeatureStore:
     def __init__(self, base_dir='data/feature_store'):
         """
@@ -29,16 +33,16 @@ class FeatureStore:
         # Şimdilik string kalsın.
         
         # Kaydet (Compression: Snappy default, fast)
-        print(f"[FeatureStore] Saving fundamentals to {self.fundamentals_path}...")
+        log.info(f"[FeatureStore] Saving fundamentals to {self.fundamentals_path}...")
         df.to_parquet(self.fundamentals_path, engine='pyarrow', index=False)
-        print("[FeatureStore] Save complete.")
+        log.info("[FeatureStore] Save complete.")
         
     def load_fundamentals(self, tickers=None, start_date=None, end_date=None) -> pd.DataFrame:
         """
         Temel analiz verilerini okur ve filtreleme yapar.
         """
         if not os.path.exists(self.fundamentals_path):
-            print("[FeatureStore] Fundamentals file not found.")
+            log.info("[FeatureStore] Fundamentals file not found.")
             return pd.DataFrame()
             
         df = pd.read_parquet(self.fundamentals_path, engine='pyarrow')
@@ -58,7 +62,7 @@ class FeatureStore:
         """
         Mevcut Excel dosyasını Feature Store'a aktarır.
         """
-        print(f"[FeatureStore] Importing legacy data from {excel_path}...")
+        log.info(f"[FeatureStore] Importing legacy data from {excel_path}...")
         if not os.path.exists(excel_path):
             raise FileNotFoundError(f"Excel file not found: {excel_path}")
             

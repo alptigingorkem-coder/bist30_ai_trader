@@ -4,20 +4,24 @@ import yfinance as yf
 from evds import evdsAPI
 import os
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class TurkeyMacroData:
     def __init__(self, evds_key=None):
         # API Key önceliği: Parametre > Çevre Değişkeni > Hardcoded (Placeholder)
         self.api_key = evds_key or os.getenv('EVDS_API_KEY')
         if not self.api_key:
-            print("UYARI: EVDS API Key bulunamadı. Lütfen çevre değişkeni olarak atayın veya __init__'e geçin.")
-            print("Örn: os.environ['EVDS_API_KEY'] = 'YOUR_KEY'")
+            log.info("UYARI: EVDS API Key bulunamadı. Lütfen çevre değişkeni olarak atayın veya __init__'e geçin.")
+            log.info("Örn: os.environ['EVDS_API_KEY'] = 'YOUR_KEY'")
             self.evds = None
         else:
             self.evds = evdsAPI(self.api_key)
 
     def fetch_all(self, start_date='2018-01-01'):
         """Tüm makro verileri çeker ve günlük frekansta birleştirir."""
-        print("Makro veriler çekiliyor (TCMB + Yahoo Finance)...")
+        log.info("Makro veriler çekiliyor (TCMB + Yahoo Finance)...")
         
         data_frames = []
         
@@ -53,10 +57,10 @@ class TurkeyMacroData:
                     # Günlük frekansa genişlet (Forward Fill)
                     evds_data = evds_data.resample('D').ffill()
                     data_frames.append(evds_data)
-                    print(f"  [EVDS] TCMB verisi çekildi: {len(evds_data)} gün")
+                    log.info(f"  [EVDS] TCMB verisi çekildi: {len(evds_data)} gün")
                     
             except Exception as e:
-                print(f"  [HATA] EVDS verisi çekilemedi: {e}")
+                log.error(f"  [HATA] EVDS verisi çekilemedi: {e}")
 
         # 2. Yahoo Finance Verileri
         yf_tickers = {
@@ -78,10 +82,10 @@ class TurkeyMacroData:
             yf_data.fillna(method='ffill', inplace=True)
             
             data_frames.append(yf_data)
-            print(f"  [YF] Global piyasa verileri çekildi: {len(yf_data)} gün")
+            log.info(f"  [YF] Global piyasa verileri çekildi: {len(yf_data)} gün")
             
         except Exception as e:
-            print(f"  [HATA] Yahoo Finance verisi çekilemedi: {e}")
+            log.error(f"  [HATA] Yahoo Finance verisi çekilemedi: {e}")
             
         # 3. Birleştirme
         if not data_frames:
@@ -103,5 +107,5 @@ if __name__ == "__main__":
     # API Key yoksa sadece YF çalışır, EVDS hata verir veya boş döner.
     loader = TurkeyMacroData() 
     df = loader.fetch_all()
-    print(df.tail())
-    print(df.info())
+    log.info("%s", df.tail())
+    log.info("%s", df.info())

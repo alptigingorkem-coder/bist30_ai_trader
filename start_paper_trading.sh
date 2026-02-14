@@ -13,4 +13,4 @@ else
 fi
 
 echo -e "${GREEN}Paper Trading Modu Başlatılıyor...${NC}"
-python daily_run.py --mode paper --headless
+python scripts/daily_run.py --mode paper --headless

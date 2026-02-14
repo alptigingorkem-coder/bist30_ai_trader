@@ -4,6 +4,10 @@ import numpy as np
 import config
 from datetime import datetime, timedelta
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class DataLoader:
     def __init__(self, start_date=config.START_DATE, end_date=config.END_DATE):
         self.start_date = start_date
@@ -12,12 +16,33 @@ class DataLoader:
         self.macro_tickers = config.MACRO_TICKERS
         self._macro_cache = None # Macro verileri bir kez çekmek için
 
+    def fetch_live_data(self, ticker, interval='1m', period='1d'):
+        """
+        Paper Trading için canlı/anlık veri çeker.
+        Varsayılan: Son 1 günlük 1 dakikalık veri.
+        """
+        try:
+            # Yahoo Finance'ten canlı veri
+            df = yf.download(ticker, period=period, interval=interval, progress=False)
+            
+            if df.empty:
+                log.info(f"UYARI: {ticker} için canlı veri alınamadı.")
+                return None
+                
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+                
+            return df
+        except Exception as e:
+            log.error(f"HATA: {ticker} canlı veri hatası: {e}")
+            return None
+
     def fetch_macro_data(self):
         """Makroekonomik verileri çeker ve birleştirir (Önbellekli)."""
         if self._macro_cache is not None:
             return self._macro_cache
             
-        print("Makroekonomik veriler indiriliyor...")
+        log.info("Makroekonomik veriler indiriliyor...")
         macro_df = pd.DataFrame()
         
         for name, ticker in self.macro_tickers.items():
@@ -28,7 +53,7 @@ class DataLoader:
                         data.columns = data.columns.droplevel(1)
                     macro_df[name] = data['Close']
             except Exception as e:
-                print(f"HATA: {name} ({ticker}) indirilirken sorun: {e}")
+                log.error(f"HATA: {name} ({ticker}) indirilirken sorun: {e}")
         
         macro_df = macro_df.ffill()
         
@@ -42,22 +67,28 @@ class DataLoader:
 
     def get_combined_data(self, ticker):
         """Hisse verisi ile makro verileri birleştirir."""
-        stock_data = self.fetch_stock_data(ticker)
-        if stock_data is None:
-            return None
+        try:
+            stock_data = self.fetch_stock_data(ticker)
+            if stock_data is None:
+                return None
+                
+            macro_data = self.fetch_macro_data()
             
-        macro_data = self.fetch_macro_data()
-        
-        # Tarih indekslerini hizala
-        combined_df = stock_data.join(macro_data, how='left')
-        
-        # Makro verilerdeki eksiklikleri (tatiller vs) doldur
-        combined_df = combined_df.ffill()
-        
-        # Haftalık resample (eğer aktifse)
-        combined_df = self.resample_to_weekly(combined_df)
-        
-        return combined_df
+            # Tarih indekslerini hizala
+            combined_df = stock_data.join(macro_data, how='left')
+            
+            # Makro verilerdeki eksiklikleri (tatiller vs) doldur
+            combined_df = combined_df.ffill()
+            
+            # Haftalık resample (eğer aktifse)
+            combined_df = self.resample_to_weekly(combined_df)
+            
+            return combined_df
+        except Exception as e:
+            log.error(f"get_combined_data error for {ticker}: {e}")
+            import traceback
+            traceback.print_exc()
+            raise e
 
     def _check_data_quality(self, data, ticker):
         """Verinin mantıklı olup olmadığını kontrol eder (Sanity Check)."""
@@ -65,7 +96,7 @@ class DataLoader:
         
         # 1. Yeterli veri var mı?
         if len(data) < 10:
-            print(f"  [UYARI] {ticker}: Yetersiz veri ({len(data)} gün).")
+            log.info(f"  [UYARI] {ticker}: Yetersiz veri ({len(data)} gün).")
             return False
             
         # 2. Son güncel tarih kontrolü (Canlı moddaysa)
@@ -80,16 +111,16 @@ class DataLoader:
         crashes = daily_pct[daily_pct < -0.60]
         
         if not crashes.empty:
-            print(f"  [UYARI] {ticker}: Anormal fiyat düşüşü tespit edildi (Split Olabilir?):")
+            log.info(f"  [UYARI] {ticker}: Anormal fiyat düşüşü tespit edildi (Split Olabilir?):")
             for d, val in crashes.items():
-                print(f"    - {d.date()}: {val:.2%}")
+                log.info(f"    - {d.date()}: {val:.2%}")
             # Otomatik düzeltme veya reddetme eklenebilir. Şimdilik uyarı.
             
         return True
 
     def _fetch_fallback(self, ticker):
         """YFinance başarısız olursa İş Yatırım'dan dener (Generic)."""
-        print(f"  [Fallback] İş Yatırım deneniyor: {ticker}...")
+        log.info(f"  [Fallback] İş Yatırım deneniyor: {ticker}...")
         try:
             from isyatirimhisse import fetch_stock_data
             
@@ -155,17 +186,17 @@ class DataLoader:
                 df_is = df_is.apply(pd.to_numeric, errors='coerce')
                 df_is.dropna(inplace=True)
                 
-                print(f"  [Başarılı] İş Yatırım'dan veri kurtarıldı: {sym} ({len(df_is)} bar)")
+                log.info(f"  [Başarılı] İş Yatırım'dan veri kurtarıldı: {sym} ({len(df_is)} bar)")
                 return df_is
                 
         except Exception as e_is:
-            print(f"  [Fallback Hata] İş Yatırım da başarısız: {e_is}")
+            log.error(f"  [Fallback Hata] İş Yatırım da başarısız: {e_is}")
             
         return None
 
     def fetch_stock_data(self, ticker):
         """Tek bir hisse senedi için veri çeker (Robust)."""
-        print(f"{ticker} verisi indiriliyor (Kaynak: Yahoo)...")
+        log.info(f"{ticker} verisi indiriliyor (Kaynak: Yahoo)...")
         data = None
         
         # 1. Deneme: Yahoo Finance
@@ -180,13 +211,13 @@ class DataLoader:
                 # Sütun varlık kontrolü
                 required = ['Open', 'High', 'Low', 'Close', 'Volume']
                 if not all(col in data.columns for col in required):
-                     print(f"  [UYARI] Yahoo eksik sütun döndürdü.")
+                     log.warning(f"  [UYARI] Yahoo eksik sütun döndürdü.")
                      data = None # Bad data
                 else:
                     data = data[required]
             
         except Exception as e:
-            print(f"  [HATA] Yahoo Finance bağlantı sorunu: {e}")
+            log.error(f"  [HATA] Yahoo Finance bağlantı sorunu: {e}")
             data = None
             
         # 2. Kalite Kontrolü ve Fallback Kararı
@@ -195,7 +226,7 @@ class DataLoader:
             is_valid = self._check_data_quality(data, ticker)
             
         if not is_valid:
-            print(f"  [UYARI] Birincil kaynak başarısız veya kalitesiz. Fallback devreye giriyor...")
+            log.error(f"  [UYARI] Birincil kaynak başarısız veya kalitesiz. Fallback devreye giriyor...")
             data = self._fetch_fallback(ticker)
             
         return data
@@ -205,7 +236,7 @@ class DataLoader:
         if config.TIMEFRAME != 'W':
             return data  # Günlük modda hiçbir şey yapma
         
-        print("  Veri haftalık periyoda dönüştürülüyor...")
+        log.info("  Veri haftalık periyoda dönüştürülüyor...")
         
         # OHLCV aggregation kuralları
         agg_rules = {
@@ -227,65 +258,18 @@ class DataLoader:
         # Boş satırları temizle
         weekly_data = weekly_data.dropna(how='all')
         
-        print(f"  Günlük: {len(data)} satır -> Haftalık: {len(weekly_data)} satır")
+        log.info(f"  Günlük: {len(data)} satır -> Haftalık: {len(weekly_data)} satır")
         return weekly_data
-
-    def fetch_macro_data(self):
-        """Makroekonomik verileri çeker ve birleştirir."""
-        print("Makroekonomik veriler indiriliyor...")
-        macro_df = pd.DataFrame()
-        
-        for name, ticker in self.macro_tickers.items():
-            try:
-                data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
-                if not data.empty:
-                    if isinstance(data.columns, pd.MultiIndex):
-                        data.columns = data.columns.droplevel(1)
-                    # Sadece kapanış fiyatını al ve yeniden adlandır
-                    macro_df[name] = data['Close']
-            except Exception as e:
-                print(f"HATA: {name} ({ticker}) indirilirken sorun: {e}")
-        
-        # Eksik verileri doldur (Forward Fill - Hafta sonları vs. için)
-        macro_df = macro_df.ffill()
-        
-        # ZAMAN UYUMU SUZGEÇİ (Lagging)
-        # US piyasaları (VIX, SP500) BIST kapandıktan sonra kapanır.
-        # Bu yüzden bugünün BIST kapanışını tahmin ederken, "bugünün" US kapanışını bilemeyiz.
-        # Dünün US kapanışını kullanmak zorundayız.
-        us_tickers = ['VIX', 'SP500']
-        for col in us_tickers:
-            if col in macro_df.columns:
-                # print(f"Bilgi: {col} verisi look-ahead bias önlemek için 1 gün kaydırılıyor.")
-                macro_df[col] = macro_df[col].shift(1)
-        
-        return macro_df
-
-    def get_combined_data(self, ticker):
-        """Hisse verisi ile makro verileri birleştirir."""
-        stock_data = self.fetch_stock_data(ticker)
-        if stock_data is None:
-            return None
-            
-        macro_data = self.fetch_macro_data()
-        
-        # Tarih indekslerini hizala
-        combined_df = stock_data.join(macro_data, how='left')
-        
-        # Makro verilerdeki eksiklikleri (tatiller vs) doldur
-        combined_df = combined_df.ffill()
-        
-        # Haftalık resample (eğer aktifse)
-        combined_df = self.resample_to_weekly(combined_df)
-        
-        return combined_df
 
 if __name__ == "__main__":
     # Test
+    from utils.logging_config import get_logger
+    log = get_logger(__name__)
+    
     loader = DataLoader()
     sample_data = loader.get_combined_data("THYAO.IS")
     if sample_data is not None:
-        print(sample_data.head())
-        print(sample_data.tail())
+        log.info("%s", sample_data.head())
+        log.info("%s", sample_data.tail())
     else:
-        print("Veri çekilemedi.")
+        log.info("Veri çekilemedi.")

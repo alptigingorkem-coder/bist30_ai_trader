@@ -19,21 +19,22 @@ from utils.feature_engineering import FeatureEngineer
 from models.ranking_model import RankingModel
 from core.backtesting import Backtester
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 # Cache directory
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache")
-
 
 def ensure_cache_dir():
     """Cache klasörünü oluştur."""
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
 
-
 def get_cache_key(train_start: str, train_end: str, test_end: str) -> str:
     """Tarih parametrelerinden cache anahtarı oluştur."""
     key = f"{train_start}_{train_end}_{test_end}"
     return hashlib.md5(key.encode()).hexdigest()[:12]
-
 
 def load_cached_data(cache_key: str) -> Optional[Dict[str, pd.DataFrame]]:
     """Cache'den veri yükle."""
@@ -47,7 +48,6 @@ def load_cached_data(cache_key: str) -> Optional[Dict[str, pd.DataFrame]]:
             return None
     return None
 
-
 def save_to_cache(cache_key: str, data: Dict[str, pd.DataFrame]):
     """Veriyi cache'e kaydet."""
     ensure_cache_dir()
@@ -57,8 +57,7 @@ def save_to_cache(cache_key: str, data: Dict[str, pd.DataFrame]):
         with open(cache_file, 'wb') as f:
             pickle.dump(data, f)
     except Exception as e:
-        print(f"Cache kaydetme hatası: {e}")
-
+        log.error(f"Cache kaydetme hatası: {e}")
 
 def batch_download_data(tickers: list, start_date: str, end_date: str, 
                          progress_callback: Optional[callable] = None) -> Dict[str, pd.DataFrame]:
@@ -74,7 +73,7 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
     if progress_callback:
         progress_callback("Tüm hisse verileri toplu indiriliyor...", 15)
     
-    print(f"Toplu indirme başlıyor: {len(tickers)} hisse...")
+    log.info(f"Toplu indirme başlıyor: {len(tickers)} hisse...")
     
     try:
         # Tüm hisseleri tek seferde indir
@@ -105,13 +104,13 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
                 if len(df) > 100:
                     all_data[ticker] = df[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
             except Exception as e:
-                print(f"  {ticker} işlenirken hata: {e}")
+                log.error(f"  {ticker} işlenirken hata: {e}")
                 continue
         
-        print(f"  ✅ {len(all_data)} hisse verisi başarıyla indirildi")
+        log.info(f"  ✅ {len(all_data)} hisse verisi başarıyla indirildi")
         
     except Exception as e:
-        print(f"Toplu indirme hatası: {e}")
+        log.error(f"Toplu indirme hatası: {e}")
         return {}
     
     # 2. MAKRO VERİLERİ TEK SEFERDE İNDİR
@@ -121,7 +120,7 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
     macro_tickers = list(config.MACRO_TICKERS.values())
     macro_names = list(config.MACRO_TICKERS.keys())
     
-    print(f"Makro veriler indiriliyor: {macro_names}...")
+    log.info(f"Makro veriler indiriliyor: {macro_names}...")
     
     try:
         macro_data = yf.download(
@@ -146,7 +145,7 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
                     
                 macro_df[name] = close
             except Exception as e:
-                print(f"  {name} işlenirken hata: {e}")
+                log.error(f"  {name} işlenirken hata: {e}")
                 continue
         
         macro_df = macro_df.ffill()
@@ -162,7 +161,7 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
              macro_df.index = macro_df.index.tz_localize(None)
         macro_df.index.name = 'Date'
 
-        print(f"  ✅ Makro veriler indirildi")
+        log.info(f"  ✅ Makro veriler indirildi")
         
         # Makro veriyi her hisse verisine ekle
         for ticker in all_data:
@@ -173,8 +172,8 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
                 all_data[ticker].index.name = 'Date'
                 
                 # DEBUG LISTING
-                print(f"DEBUG {ticker}: Index Name={all_data[ticker].index.name}, Type={type(all_data[ticker].index)}")
-                print(f"DEBUG MACRO: Index Name={macro_df.index.name}, Type={type(macro_df.index)}")
+                log.debug(f"DEBUG {ticker}: Index Name={all_data[ticker].index.name}, Type={type(all_data[ticker].index)}")
+                log.debug(f"DEBUG MACRO: Index Name={macro_df.index.name}, Type={type(macro_df.index)}")
                 
                 # index'ler uyumlu mu kontrol et
                 # Join yerine merge deneyelim, bazen daha sağlamdır
@@ -201,16 +200,16 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
                 all_data[ticker] = merged.ffill()
                 
             except Exception as e:
-                print(f"  ⚠️ {ticker} makro veri birleştirme hatası: {e}")
+                log.error(f"  ⚠️ {ticker} makro veri birleştirme hatası: {e}")
                 import traceback
+
                 traceback.print_exc()
                 continue
             
     except Exception as e:
-        print(f"Makro veri indirme hatası: {e}")
+        log.error(f"Makro veri indirme hatası: {e}")
     
     return all_data
-
 
 def validate_dates(train_start: str, train_end: str, test_end: str) -> Dict[str, Any]:
     """Tarih parametrelerini doğrular."""
@@ -238,7 +237,6 @@ def validate_dates(train_start: str, train_end: str, test_end: str) -> Dict[str,
     
     return {"valid": True, "error": None}
 
-
 def run_dynamic_backtest(
     train_start: str,
     train_end: str,
@@ -255,7 +253,7 @@ def run_dynamic_backtest(
     def update_progress(step: str, pct: int):
         if progress_callback:
             progress_callback(step, pct)
-        print(f"[{pct}%] {step}")
+        log.info(f"[{pct}%] {step}")
     
     # 1. Validasyon
     update_progress("Parametreler doğrulanıyor...", 5)
@@ -271,7 +269,7 @@ def run_dynamic_backtest(
         update_progress("Cache kontrol ediliyor...", 8)
         cached_processed = load_cached_data(cache_key)
         if cached_processed:
-            print(f"  ✅ Cache bulundu! ({cache_key})")
+            log.info(f"  ✅ Cache bulundu! ({cache_key})")
     
     # 3. Veri İndirme veya Cache'den Yükleme
     tickers = config.TICKERS
@@ -311,7 +309,7 @@ def run_dynamic_backtest(
                 if len(test_df) > 10:
                     all_test_data.append(test_df)
             except Exception as e:
-                print(f"  {ticker} feature engineering hatası: {e}")
+                log.error(f"  {ticker} feature engineering hatası: {e}")
                 continue
         
         if not all_train_data:
@@ -498,7 +496,6 @@ def run_dynamic_backtest(
     
     return result
 
-
 if __name__ == "__main__":
     result = run_dynamic_backtest(
         train_start="2015-01-01",
@@ -509,10 +506,10 @@ if __name__ == "__main__":
     )
     
     if result["success"]:
-        print("\n" + "="*50)
-        print("BACKTEST SONUÇLARI")
-        print("="*50)
+        log.info("\n" + "="*50)
+        log.info("BACKTEST SONUÇLARI")
+        log.info("="*50)
         for key, value in result["metrics"].items():
-            print(f"  {key}: {value}")
+            log.info(f"  {key}: {value}")
     else:
-        print(f"HATA: {result['error']}")
+        log.error(f"HATA: {result['error']}")

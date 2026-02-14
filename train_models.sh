@@ -13,4 +13,4 @@ else
 fi
 
 echo -e "${GREEN}Model Eğitimi Başlatılıyor...${NC}"
-python train_models.py
+python scripts/train_models.py

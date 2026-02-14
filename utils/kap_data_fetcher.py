@@ -15,13 +15,16 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict
 import pandas as pd
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 try:
     from pykap.bist import BISTCompany
     PYKAP_AVAILABLE = True
 except ImportError:
     PYKAP_AVAILABLE = False
-    print("[WARN] pykap kütüphanesi yüklü değil. KAP verileri çekilemeyecek.")
-
+    log.warning("[WARN] pykap kütüphanesi yüklü değil. KAP verileri çekilemeyecek.")
 
 class KAPDataFetcher:
     """
@@ -78,7 +81,7 @@ class KAPDataFetcher:
             with open(cache_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, default=str)
         except Exception as e:
-            print(f"[WARN] Cache kaydetme hatası: {e}")
+            log.error(f"[WARN] Cache kaydetme hatası: {e}")
     
     def _to_date(self, d) -> date:
         """Farklı tarih formatlarını date objesine çevirir."""
@@ -144,7 +147,7 @@ class KAPDataFetcher:
                         # print(f"[KAP] {ticker} bildirimleri cache'den yüklendi.")
                         return pd.DataFrame(cached_data)
                 except Exception as e:
-                    print(f"  [CACHE ERROR] {ticker} okuma hatası: {e}")
+                    log.error(f"  [CACHE ERROR] {ticker} okuma hatası: {e}")
         
         # 3. Canlı Veri Çekme (PyKap) - Sadece explicit istek varsa
         # Backtest sırasında canlı veri çekip timeout riskine girmeyelim
@@ -160,7 +163,7 @@ class KAPDataFetcher:
 
         # Buraya sadece force_live=True ise düşer
         import concurrent.futures
-        
+
         def _fetch():
             company = BISTCompany(ticker=ticker.replace('.IS', ''))
             return company.get_historical_disclosure_list(
@@ -170,7 +173,7 @@ class KAPDataFetcher:
             )
             
         try:
-            print(f"[KAP] {ticker} bildirimleri CANLI çekiliyor ({from_date} -> {to_date})...")
+            log.info(f"[KAP] {ticker} bildirimleri CANLI çekiliyor ({from_date} -> {to_date})...")
             
             # DIRECT CALL (Thread Pool Removed for Debugging)
             company = BISTCompany(ticker=ticker.replace('.IS', ''))
@@ -187,10 +190,10 @@ class KAPDataFetcher:
             return pd.DataFrame()
             
         except concurrent.futures.TimeoutError:
-            print(f"[KAP] {ticker} TIMEOUT - Veri çekme 30 saniyede tamamlanamadı.")
+            log.warning(f"[KAP] {ticker} TIMEOUT - Veri çekme 30 saniyede tamamlanamadı.")
             return pd.DataFrame()
         except Exception as e:
-            print(f"[KAP] {ticker} bildirim çekme hatası: {e}")
+            log.error(f"[KAP] {ticker} bildirim çekme hatası: {e}")
             return pd.DataFrame()
     
     def fetch_financial_reports(
@@ -222,11 +225,11 @@ class KAPDataFetcher:
         if use_cache and self._is_cache_valid(cache_path):
             cached_data = self._load_cache(cache_path)
             if cached_data:
-                print(f"[KAP] {ticker} mali raporları cache'den yüklendi.")
+                log.info(f"[KAP] {ticker} mali raporları cache'den yüklendi.")
                 return pd.DataFrame(cached_data)
         
         try:
-            print(f"[KAP] {ticker} mali raporları çekiliyor...")
+            log.info(f"[KAP] {ticker} mali raporları çekiliyor...")
             company = BISTCompany(ticker=ticker.replace('.IS', ''))
             
             reports = company.get_financial_reports(
@@ -241,7 +244,7 @@ class KAPDataFetcher:
             return pd.DataFrame()
             
         except Exception as e:
-            print(f"[KAP] {ticker} mali rapor çekme hatası: {e}")
+            log.error(f"[KAP] {ticker} mali rapor çekme hatası: {e}")
             return pd.DataFrame()
     
     def create_event_features(
@@ -324,7 +327,6 @@ class KAPDataFetcher:
             df.loc[idx, 'has_recent_disclosure'] = int(has_recent)
         
         return df
-
 
 # Singleton instance
 kap_fetcher = KAPDataFetcher()

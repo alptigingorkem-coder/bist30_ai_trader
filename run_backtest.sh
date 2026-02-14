@@ -13,4 +13,4 @@ else
 fi
 
 echo -e "${GREEN}Backtest Başlatılıyor...${NC}"
-python run_backtest.py
+python scripts/run_backtest.py

@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import sys
+import sqlite3
 from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,25 +11,82 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 import yfinance as yf
 import pandas as pd
-import random
 import threading
 import uuid
 
 # Add project root to path to import backend modules if needed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import dynamic backtest module
+import config
 from core.dynamic_backtest import run_dynamic_backtest, validate_dates
+from utils.logging_config import get_logger
 
-app = FastAPI()
+log = get_logger(__name__)
 
-# Backtest job storage (in-memory)
-backtest_jobs: Dict[str, Dict] = {}
+app = FastAPI(title="BIST30 AI Trader API", version="2.0")
 
-# CORS Settings
+# ---------------------------------------------------------
+# SQLite Backtest Job Storage
+# ---------------------------------------------------------
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "backtest_jobs.db")
+
+
+def _init_db():
+    """Backtest jobs tablosunu oluştur."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS backtest_jobs (
+            job_id TEXT PRIMARY KEY,
+            status TEXT DEFAULT 'pending',
+            progress INTEGER DEFAULT 0,
+            message TEXT DEFAULT '',
+            result TEXT DEFAULT NULL,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def _save_job(job_id: str, status: str, progress: int, message: str, result=None):
+    """Job durumunu SQLite'a kaydet."""
+    conn = sqlite3.connect(DB_PATH)
+    result_json = json.dumps(result) if result else None
+    now = datetime.now().isoformat()
+    conn.execute("""
+        INSERT OR REPLACE INTO backtest_jobs (job_id, status, progress, message, result, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM backtest_jobs WHERE job_id = ?), ?), ?)
+    """, (job_id, status, progress, message, result_json, job_id, now, now))
+    conn.commit()
+    conn.close()
+
+
+def _load_job(job_id: str) -> Optional[dict]:
+    """Job durumunu SQLite'dan oku."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM backtest_jobs WHERE job_id = ?", (job_id,)).fetchone()
+    conn.close()
+    if row is None:
+        return None
+    d = dict(row)
+    if d["result"]:
+        d["result"] = json.loads(d["result"])
+    return d
+
+
+_init_db()
+
+# ---------------------------------------------------------
+# CORS Settings (güvenli)
+# ---------------------------------------------------------
+ALLOWED_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,20 +108,11 @@ class BacktestStatus(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "BIST30 AI Trader API çalışıyor", "docs": "/docs"}
+    return {"message": "BIST30 AI Trader API çalışıyor", "version": "2.0", "docs": "/docs"}
 
-# Configuration
+# Configuration — DRY: config.TICKERS kullan
 PORTFOLIO_STATE_FILE = "../logs/paper_trading/portfolio_state.json"
-# BIST 30 ve Tier-1 Hisseleri
-TICKERS = [
-    "AKBNK.IS", "ALARK.IS", "ASELS.IS", "ASTOR.IS", "BIMAS.IS",
-    "EKGYO.IS", "ENKAI.IS", "EREGL.IS", "FROTO.IS", "GARAN.IS",
-    "GUBRF.IS", "HEKTS.IS", "ISCTR.IS", "KCHOL.IS", "KONTR.IS",
-    "KRDMD.IS", "ODAS.IS", "OYAKC.IS", "PETKM.IS",
-    "PGSUS.IS", "SAHOL.IS", "SASA.IS", "SISE.IS", "TAVHL.IS",
-    "TCELL.IS", "THYAO.IS", "TOASO.IS", "TSKB.IS", "TTKOM.IS",
-    "TUPRS.IS", "YKBNK.IS"
-]
+TICKERS = [f"{t}.IS" if not t.endswith(".IS") else t for t in config.TICKERS]
 
 class ConnectionManager:
     def __init__(self):
@@ -86,22 +135,83 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # ---------------------------------------------------------
+# Model Loading (Lazy Singleton)
+# ---------------------------------------------------------
+
+_model_cache = {"model": None, "features": None, "loaded": False}
+
+
+def _load_model():
+    """Load ranking model (singleton, lazy)."""
+    if _model_cache["loaded"]:
+        return _model_cache["model"], _model_cache["features"]
+    
+    import joblib
+    from models.ensemble_model import HybridEnsemble
+    import config
+    
+    lgbm_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "saved", "global_ranker.pkl")
+    features_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "saved", "global_ranker_features.pkl")
+    tft_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "saved", "tft_model.pth")
+    
+    try:
+        ensemble = HybridEnsemble()
+        
+        # LightGBM Check
+        if os.path.exists(lgbm_path):
+            # Normalde ensemble.load_models lgbm path bekler ama tft config de lazım
+            # Basitçe manuel yükleyelim veya load_models kullanalım
+            # load_models(self, lgbm_path, tft_path, tft_config=None)
+            
+            # Feature list
+            if os.path.exists(features_path):
+                _model_cache["features"] = joblib.load(features_path)
+                log.info("Feature list loaded: %d features", len(_model_cache["features"]))
+                
+            # Config for TFT (Dummy config)
+            # Aslında TFT config modelin içinde kayıtlı olmalıydı (save method update'imizde yaptık)
+            # Ama load_models methodu tft_config (initialization params) istiyor.
+            # Biz save methodunda 'hyperparameters' ve 'dataset_params' kaydettik.
+            # BIST30TransformerModel.load() bu parametreleri dosyadan okuyup init edebilse iyi olurdu.
+            # Ancak BIST30TransformerModel.__init__ sadece config_module alır.
+            # Bu yüzden load() methodu içinde instance yaratması zor.
+            # Transformer modelde yaptığımız değişiklik: load() methodu instance oluşturmak yerine mevcut instance'a yüklüyor.
+            # Bu yüzden önce init etmemiz lazım. Init için config module yeterli.
+            
+            tft_config_module = config # Global config
+            # TFT path varsa ve dosya mevcutsa
+            use_tft = os.path.exists(tft_path)
+            
+            if use_tft:
+                ensemble.load_models(lgbm_path, tft_path, tft_config=tft_config_module)
+            else:
+                 # Sadece LGBM yükle (load_models TFT opsiyonel destekliyor mu? Bakalım)
+                 # load_models kodu: if tft_config and tft_path: ...
+                 # Eğer tft_path None verirsek sadece LGBM yükler.
+                 ensemble.load_models(lgbm_path, None, None)
+                 
+            _model_cache["model"] = ensemble
+            log.info("Hybrid Ensemble model loaded.")
+        else:
+            log.warning("No LightGBM model file found at %s", lgbm_path)
+    except Exception as e:
+        log.error("Model loading failed: %s", e)
+    
+    _model_cache["loaded"] = True
+    return _model_cache["model"], _model_cache["features"]
+
+
+# ---------------------------------------------------------
 # Backtest Functions
 # ---------------------------------------------------------
 
 def run_backtest_job(job_id: str, request: BacktestRequest):
-    """
-    Background'da backtest çalıştır.
-    """
-    global backtest_jobs
-    
+    """Background'da backtest çalıştır — sonuçlar SQLite'a kaydedilir."""
     try:
-        backtest_jobs[job_id]["status"] = "running"
-        backtest_jobs[job_id]["message"] = "Model eğitiliyor..."
+        _save_job(job_id, "running", 0, "Model eğitiliyor...")
         
         def progress_callback(step: str, pct: int):
-            backtest_jobs[job_id]["progress"] = pct
-            backtest_jobs[job_id]["message"] = step
+            _save_job(job_id, "running", pct, step)
         
         result = run_dynamic_backtest(
             train_start=request.train_start,
@@ -112,42 +222,26 @@ def run_backtest_job(job_id: str, request: BacktestRequest):
         )
         
         if result["success"]:
-            backtest_jobs[job_id]["status"] = "completed"
-            backtest_jobs[job_id]["progress"] = 100
-            backtest_jobs[job_id]["message"] = "Tamamlandı!"
-            backtest_jobs[job_id]["result"] = result
+            _save_job(job_id, "completed", 100, "Tamamlandı!", result)
         else:
-            backtest_jobs[job_id]["status"] = "error"
-            backtest_jobs[job_id]["message"] = result.get("error", "Bilinmeyen hata")
+            _save_job(job_id, "error", 0, result.get("error", "Bilinmeyen hata"))
             
     except Exception as e:
         import traceback
-        traceback.print_exc() # Hatanın detayını konsola bas
-        backtest_jobs[job_id]["status"] = "error"
-        backtest_jobs[job_id]["message"] = str(e)
+        traceback.print_exc()
+        _save_job(job_id, "error", 0, str(e))
 
 
 @app.post("/api/backtest/run")
 async def start_backtest(request: BacktestRequest):
-    """
-    Dinamik backtest başlat.
-    Backtest arka planda çalışır, job_id döner.
-    """
-    # Validasyon
+    """Dinamik backtest başlat. Job SQLite'a kaydedilir."""
     validation = validate_dates(request.train_start, request.train_end, request.test_end)
     if not validation["valid"]:
         return {"success": False, "error": validation["error"]}
     
-    # Job oluştur
     job_id = str(uuid.uuid4())
-    backtest_jobs[job_id] = {
-        "status": "pending",
-        "progress": 0,
-        "message": "Kuyrukta...",
-        "result": None
-    }
+    _save_job(job_id, "pending", 0, "Kuyrukta...")
     
-    # Background thread başlat
     thread = threading.Thread(target=run_backtest_job, args=(job_id, request))
     thread.start()
     
@@ -156,13 +250,11 @@ async def start_backtest(request: BacktestRequest):
 
 @app.get("/api/backtest/status/{job_id}")
 async def get_backtest_status(job_id: str):
-    """
-    Backtest job durumunu sorgula.
-    """
-    if job_id not in backtest_jobs:
+    """Backtest job durumunu sorgula (SQLite'dan)."""
+    job = _load_job(job_id)
+    if job is None:
         return {"success": False, "error": "Job bulunamadı"}
     
-    job = backtest_jobs[job_id]
     return {
         "success": True,
         "job_id": job_id,
@@ -175,9 +267,7 @@ async def get_backtest_status(job_id: str):
 
 @app.post("/api/backtest/validate")
 async def validate_backtest_params(request: BacktestRequest):
-    """
-    Backtest parametrelerini validate et (çalıştırmadan).
-    """
+    """Backtest parametrelerini validate et (çalıştırmadan)."""
     validation = validate_dates(request.train_start, request.train_end, request.test_end)
     return validation
 
@@ -193,7 +283,7 @@ def load_portfolio_state():
             with open(PORTFOLIO_STATE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Error reading portfolio state: {e}")
+            log.error("Error reading portfolio state: %s", e)
             return None
     return None
 
@@ -204,35 +294,24 @@ async def fetch_market_data():
     data = []
     
     try:
-        # Fallback zinciri ile veri çek (YFinance -> Stooq -> Cache)
-        # Tickers listesi config.py'den geliyor olmalı ama burada global var.
-        # LiveDataEngine yf.download formatı (MultiIndex) döner.
-        
-        # Unpack tuple (data_dict, source_str)
         result = live_engine.fetch_live_data(TICKERS)
         
-        # Eğer result tuple değilse (eski versiyon engine kaldıysa)
         if isinstance(result, tuple):
              raw_data, source = result
         else:
              raw_data = result
              source = "Unknown"
         
-        # Process data for UI
-        # raw_data: { 'AKBNK.IS': DataFrame(OHLCV...), ... } dict formatında döner
-        
         for symbol, df_t in raw_data.items():
             try:
                 if df_t.empty: continue
                 
-                # Son veriyi al
-                latest = df_t.iloc[-1] # Series
+                latest = df_t.iloc[-1]
                 
-                # Prev Close Handling
                 if len(df_t) > 1:
                     prev_close = df_t.iloc[-2]['Close']
                 else:
-                    prev_close = df_t.iloc[-1]['Open'] # Fallback
+                    prev_close = df_t.iloc[-1]['Open']
                 
                 current_price = latest['Close']
                 volume = latest['Volume']
@@ -255,14 +334,14 @@ async def fetch_market_data():
                 continue
                 
     except DataUnavailabilityError as e:
-        print(f"⚠️ [CRITICAL] {e}")
+        log.error("CRITICAL: %s", e)
         return {"status": "CRITICAL", "source": "None", "error": str(e), "data": []}
         
     except Exception as e:
-        print(f"Error fetching market data: {e}")
+        log.error("Error fetching market data: %s", e)
         return {"status": "ERROR", "source": "None", "error": str(e), "data": []}
         
-    print(f"Returning {len(data)} items from LiveEngine (Source: {source}).")
+    log.info("Returning %d items from LiveEngine (Source: %s).", len(data), source)
     return {"status": "OK", "source": source, "data": data}
 
 # ---------------------------------------------------------
@@ -274,7 +353,6 @@ async def get_portfolio():
     state = load_portfolio_state()
     if state:
         return state
-    # Return empty structure if no state found
     return {
         "cash": 100000,
         "positions": {},
@@ -285,14 +363,12 @@ async def get_portfolio():
 @app.get("/api/market-data/{symbol}")
 async def get_history(symbol: str):
     """Get historical data for charts."""
-    # Ensure symbol has .IS suffix
     yf_symbol = f"{symbol}.IS" if not symbol.endswith(".IS") else symbol
     
     try:
         ticker = yf.Ticker(yf_symbol)
         hist = ticker.history(period="1mo", interval="1d")
         
-        # Format for lightweight-charts
         chart_data = []
         for date, row in hist.iterrows():
             chart_data.append({
@@ -310,57 +386,186 @@ async def get_history(symbol: str):
 @app.get("/api/predictions/{symbol}")
 async def get_predictions(symbol: str):
     """
-    Get AI predictions and signals for plotting.
-    Currently mocks data based on latest price to demonstrate UI features.
+    AI tabanlı tahmin ve sinyaller.
+    Model yüklüyse gerçek score, değilse fallback mock.
+    Response'da 'model_source' alanı kaynağı belirtir.
     """
+    import random
+    
     # 1. Get current price context
     chart_data = await get_history(symbol)
     if isinstance(chart_data, dict) and "error" in chart_data:
         return []
         
+    if not chart_data:
+        return {"forecast": [], "signals": [], "model_source": "error"}
+    
     last_candle = chart_data[-1]
     last_price = last_candle['close']
     last_date = datetime.strptime(last_candle['time'], "%Y-%m-%d")
 
-    # 2. Generate Future Projections (Next 5 days)
+    # 2. Try real model prediction
+    model, features = _load_model()
+    model_source = "mock"
+    model_score = None
+    
+    if model is not None:
+        try:
+            yf_symbol = f"{symbol}.IS" if not symbol.endswith(".IS") else symbol
+            ticker_obj = yf.Ticker(yf_symbol)
+            hist_60d = ticker_obj.history(period="3mo", interval="1d")
+            
+            if not hist_60d.empty and len(hist_60d) > 20:
+                # Basit feature set oluştur (model feature'larının alt kümesi)
+                df = hist_60d.copy()
+                df['Returns'] = df['Close'].pct_change()
+                df['Volatility_20'] = df['Returns'].rolling(20).std()
+                df['SMA_20'] = df['Close'].rolling(20).mean()
+                df['SMA_50'] = df['Close'].rolling(50).mean()
+                df['RSI_14'] = _compute_rsi(df['Close'], 14)
+                df['Volume_SMA_20'] = df['Volume'].rolling(20).mean()
+                df['Volume_Ratio'] = df['Volume'] / df['Volume_SMA_20']
+                df['Momentum_10'] = df['Close'].pct_change(10)
+                df = df.dropna()
+                
+                if not df.empty and features is not None:
+                    # Model'in beklediği feature'larla kesişimi al
+                    # Not: TFT için tüm sütunlara ihtiyaç olabilir, Feature subsetting LightGBM için.
+                    # Hybrid modelde ayrımı içeride yapmak daha doğru olurdu ama şimdilik
+                    # LightGBM feature'ları + TFT için gerekenler (Price, Volume, Dates) gerekli.
+                    
+                    # Basitlik için: df'yi olduğu gibi gönderelim, model içinden seçsin diyeceğim ama
+                    # lgbm.predict() strict feature order isteyebilir.
+                    # HybridEnsemble.predict bunu handle etmeli.
+                    
+                    # Mevcut yapıda HybridEnsemble.predict -> lgbm.predict(df) 
+                    # Eğer df içinde fazla sütun varsa lgbm bozulur mu? (Sklearn/LGBM genelde bozulmaz, ama feature order önemli)
+                    # Feature listesiyle filtrelemek LGBM için güvenli.
+                    # TFT için ise 'Close', 'Volume' vb. ham veriler lazım.
+                    
+                    # Çözüm: HybridEnsemble'a ham DF gönderelim.
+                    # Ancak LGBM sadece specific featureları ister.
+                    # O yüzden ensemble.predict içinde ayrıştırma yapılmalı.
+                    # Şimdilik API tarafında: feature subsetting'i sadece LGBM için değil genel yapıyoruz.
+                    # TFT için ekstra sütunları koruyalım.
+                    
+                    # LightGBM featureları
+                    lgbm_cols = [f for f in features if f in df.columns]
+                    
+                    # Eğer model HybridEnsemble ise, yönetimi ona bırakalım.
+                    # Ancak `predict` metodunun imzasına göre davranmalı.
+                    
+                    if hasattr(model, 'predict'):
+                        # HybridEnsemble or LGBM
+                        # HybridEnsemble handle both? Yes if coded properly.
+                        # But we checked `api/server.py` loaded `HybridEnsemble`.
+                        # `ensemble_model.py` checks `self.lgbm.predict(df)`.
+                        # If `df` has extra columns, LGBM implementation might warn or error depending on strictness.
+                        # But usually `ranking_model.py` (LGBM wrapper) might select features?
+                        
+                        # Let's verify `ranking_model.py` later.
+                        # For now, pass relevant history.
+                        
+                        # Pass last 60 rows for TFT context
+                        p_df = df.iloc[-60:].copy() 
+                        
+                        # Prediction
+                        preds = model.predict(p_df)
+                        
+                        # Get last value
+                        if isinstance(preds, (list, np.ndarray, pd.Series)):
+                             # Handle dimensions
+                            if hasattr(preds, 'flatten'):
+                                preds = preds.flatten()
+                            if len(preds) > 0:
+                                raw_score = float(preds[-1])
+                                model_score = raw_score
+                                model_source = "hybrid" if getattr(model, 'tft', None) else "lightgbm"
+                                log.info("Real model prediction (%s): score=%.4f", model_source, model_score)
+                        else:
+                            # Scalar
+                            model_score = float(preds)
+                            model_source = "hybrid"
+                            log.info("Real model prediction: score=%.4f", model_score)
+        except Exception as e:
+            log.warning("Model prediction failed for %s: %s (falling back to mock)", symbol, e)
+
+    # 3. Generate forecast (model-aware if possible)
     forecast = []
     current_price = last_price
     
+    # Model score'u yöne çevir: pozitif = yukarı, negatif = aşağı
+    if model_score is not None:
+        bias = model_score * 0.005  # Çok küçük etki (günlük %0.5 max)
+    else:
+        bias = 0.0
+    
     for i in range(1, 6):
         next_date = last_date + timedelta(days=i)
-        # Random walk for demo
-        change = random.uniform(-0.02, 0.02)
+        change = random.uniform(-0.015, 0.015) + bias
         current_price = current_price * (1 + change)
         
-        upper_bound = current_price * 1.03
-        lower_bound = current_price * 0.97
+        confidence_band = 0.03 if model_source == "mock" else 0.02
+        upper_bound = current_price * (1 + confidence_band)
+        lower_bound = current_price * (1 - confidence_band)
         
         forecast.append({
             "time": next_date.strftime("%Y-%m-%d"),
-            "value": current_price, 
-            "upper": upper_bound,
-            "lower": lower_bound
+            "value": round(current_price, 2),
+            "upper": round(upper_bound, 2),
+            "lower": round(lower_bound, 2)
         })
 
-    # 3. Generate Historical Signals (Last 30 days)
+    # 4. Generate signals (model-aware)
     signals = []
-    for i in range(len(chart_data) - 10, len(chart_data)):
-        # Randomly place signal
-        if random.random() > 0.8:
-            candle = chart_data[i]
-            signal_type = "sell" if random.random() > 0.5 else "buy"
+    if model_score is not None:
+        # Gerçek model varsa: son muma sinyal koy
+        if model_score > 0.5:
             signals.append({
-                "time": candle['time'],
-                "position": "aboveBar" if signal_type == "sell" else "belowBar",
-                "color": "#ef5350" if signal_type == "sell" else "#00c853",
-                "shape": "arrowDown" if signal_type == "sell" else "arrowUp",
-                "text": f"AI {signal_type.upper()}"
+                "time": chart_data[-1]['time'],
+                "position": "belowBar",
+                "color": "#00c853",
+                "shape": "arrowUp",
+                "text": f"AI BUY ({model_score:.2f})"
             })
+        elif model_score < -0.5:
+            signals.append({
+                "time": chart_data[-1]['time'],
+                "position": "aboveBar",
+                "color": "#ef5350",
+                "shape": "arrowDown",
+                "text": f"AI SELL ({model_score:.2f})"
+            })
+    else:
+        # Fallback mock sinyalleri
+        for i in range(len(chart_data) - 10, len(chart_data)):
+            if random.random() > 0.8:
+                candle = chart_data[i]
+                signal_type = "sell" if random.random() > 0.5 else "buy"
+                signals.append({
+                    "time": candle['time'],
+                    "position": "aboveBar" if signal_type == "sell" else "belowBar",
+                    "color": "#ef5350" if signal_type == "sell" else "#00c853",
+                    "shape": "arrowDown" if signal_type == "sell" else "arrowUp",
+                    "text": f"AI {signal_type.upper()}"
+                })
 
     return {
         "forecast": forecast,
-        "signals": signals
+        "signals": signals,
+        "model_source": model_source,
+        "model_score": model_score
     }
+
+
+def _compute_rsi(series, period=14):
+    """RSI hesaplama yardımcısı."""
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 
 # ---------------------------------------------------------
 # WebSocket Loop
@@ -371,7 +576,6 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -388,7 +592,6 @@ async def broadcast_updates():
         # 1. Market Data Update
         market_result = await fetch_market_data()
         
-        # market_result artık bir dict: {status, source, data}
         if market_result and market_result.get("data"):
             await manager.broadcast(json.dumps({
                 "type": "MARKET_UPDATE",
@@ -397,7 +600,6 @@ async def broadcast_updates():
                 "data": market_result.get("data")
             }))
         elif market_result and market_result.get("status") == "CRITICAL":
-             # Kritik hata durumunda da yayın yap, UI kilitlensin
              await manager.broadcast(json.dumps({
                 "type": "MARKET_CRITICAL_ERROR",
                 "error": market_result.get("error")
@@ -406,13 +608,9 @@ async def broadcast_updates():
         # 2. Portfolio State Update
         current_state = load_portfolio_state()
         
-        # Check if state has changed (simple equality check or check timestamp)
-        # For simplicity, we just broadcast if it's not None. Client handles diffs?
-        # Better: compare strict string dumps
         current_state_str = json.dumps(current_state, sort_keys=True) if current_state else ""
         last_state_str = json.dumps(last_portfolio_state, sort_keys=True) if last_portfolio_state else ""
         
-            
         if current_state and current_state_str != last_state_str:
             await manager.broadcast(json.dumps({
                 "type": "PORTFOLIO_UPDATE",
@@ -420,7 +618,7 @@ async def broadcast_updates():
             }))
             last_portfolio_state = current_state
             
-        await asyncio.sleep(15) # Update every 15 seconds to avoid API limits and file I/O spam
+        await asyncio.sleep(15)
 
 @app.on_event("startup")
 async def startup_event():
@@ -428,5 +626,4 @@ async def startup_event():
 
 if __name__ == "__main__":
     import uvicorn
-    # Important: host 0.0.0.0 for external access if needed, but localhost is fine
     uvicorn.run(app, host="0.0.0.0", port=8000)

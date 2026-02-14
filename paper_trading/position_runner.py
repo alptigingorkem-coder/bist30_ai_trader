@@ -12,6 +12,7 @@ import numpy as np
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from utils.logging_config import get_logger
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
 from paper_trading.portfolio_state import PortfolioState
@@ -19,6 +20,8 @@ from paper_trading.position_engine import PositionEngine
 from paper_trading.position_logger import PositionLogger
 from core.risk_manager import RiskManager
 from paper_trading.strategy_health import check_strategy_health
+
+log = get_logger(__name__)
 
 
 def load_production_model():
@@ -32,17 +35,17 @@ def load_production_model():
         from catboost import CatBoostClassifier
         model = CatBoostClassifier()
         model.load_model(catboost_path)
-        print(f"✅ CatBoost model loaded: {catboost_path}")
+        log.info("CatBoost model loaded: %s", catboost_path)
         return model
     
     # Fallback to LightGBM
     lgbm_path = "models/saved/global_ranker.pkl"
     if os.path.exists(lgbm_path):
         model = joblib.load(lgbm_path)
-        print(f"✅ LightGBM model loaded: {lgbm_path}")
+        log.info("LightGBM model loaded: %s", lgbm_path)
         return model
     
-    raise FileNotFoundError("❌ No production model found")
+    raise FileNotFoundError("No production model found")
 
 
 def run_position_aware_session(verbose: bool = True):
@@ -57,44 +60,44 @@ def run_position_aware_session(verbose: bool = True):
     6. Log and save state
     """
     
-    print("\n" + "="*70)
-    print("🎯 POSITION-AWARE PAPER TRADING (v3.0)")
-    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print("="*70)
+    log.info("=" * 70)
+    log.info("POSITION-AWARE PAPER TRADING (v3.0)")
+    log.info("Date: %s", datetime.now().strftime('%Y-%m-%d %H:%M'))
+    log.info("=" * 70)
     
     # 1. Initialize modules
     portfolio = PortfolioState.load()
     risk_manager = RiskManager()
     engine = PositionEngine(portfolio_state=portfolio, risk_manager=risk_manager)
-    logger = PositionLogger()
+    trade_logger = PositionLogger()
     
     if verbose:
-        print(f"\n📊 Portfolio State (Start):")
-        print(f"   Cash           : {portfolio.cash:,.0f} TL")
-        print(f"   Positions      : {portfolio.position_count()}")
-        print(f"   Total Value    : {portfolio.total_portfolio_value():,.0f} TL")
-        print(f"   Exposure       : {portfolio.exposure_ratio()*100:.1f}%")
+        log.info("Portfolio State (Start):")
+        log.info("   Cash           : %,.0f TL", portfolio.cash)
+        log.info("   Positions      : %d", portfolio.position_count())
+        log.info("   Total Value    : %,.0f TL", portfolio.total_portfolio_value())
+        log.info("   Exposure       : %.1f%%", portfolio.exposure_ratio() * 100)
     
     # 2. Load model
-    print(f"\n⏳ Loading production model...")
+    log.info("Loading production model...")
     model = load_production_model()
     
     # 3. Strategy health check (kill-switch & position sizing hints)
     can_trade, health_msg, health_rec = check_strategy_health(portfolio)
     if verbose:
-        print(f"\n🩺 Strategy Health: {health_msg}")
-        print(f"   Can Live Trade : {health_rec.get('can_live_trade')}")
-        print(f"   Paper Only     : {health_rec.get('paper_only_mode')}")
-        print(f"   Pos Size x     : {health_rec.get('position_size_multiplier')}")
-        print(f"   Conf Threshold : {health_rec.get('confidence_threshold')}")
+        log.info("Strategy Health: %s", health_msg)
+        log.info("   Can Live Trade : %s", health_rec.get('can_live_trade'))
+        log.info("   Paper Only     : %s", health_rec.get('paper_only_mode'))
+        log.info("   Pos Size x     : %s", health_rec.get('position_size_multiplier'))
+        log.info("   Conf Threshold : %s", health_rec.get('confidence_threshold'))
 
     # Eğer canlı trade modunda ve strateji izin vermiyorsa, oturumu sonlandır
     if not can_trade:
-        print("❌ Strategy health blocked trading. Session aborted.")
+        log.error("Strategy health blocked trading. Session aborted.")
         return
 
     # 4. Download market data
-    print(f"⏳ Downloading market data...")
+    log.info("Downloading market data...")
     loader = DataLoader(start_date=config.START_DATE)
     tickers = config.TICKERS
     
@@ -111,13 +114,13 @@ def run_position_aware_session(verbose: bool = True):
             all_data[ticker] = df
     
     if not all_data:
-        print("❌ No data available")
+        log.error("No data available")
         return
     
-    print(f"✅ Processed {len(all_data)} symbols")
+    log.info("Processed %d symbols", len(all_data))
     
     # 5. Predict & Rank
-    print(f"⏳ Running model predictions...")
+    log.info("Running model predictions...")
     full_df = pd.concat(all_data.values())
     
     # Get latest data point for each ticker
@@ -139,16 +142,17 @@ def run_position_aware_session(verbose: bool = True):
     top_picks['target_weight'] = top_picks['Score'] / total_score if total_score > 0 else 1.0 / len(top_picks)
     
     if verbose:
-        print(f"\n🎯 Target Portfolio (Top {MAX_POSITIONS}):")
+        log.info("Target Portfolio (Top %d):", MAX_POSITIONS)
         for _, row in top_picks.iterrows():
             ticker = row['Ticker']
             score = row['Score']
             weight = row['target_weight']
             price = row['Close']
-            print(f"   {ticker:<10} | Score: {score:.2f} | Weight: {weight*100:>5.1f}% | Price: {price:.2f}")
+            log.info("   %s | Score: %.2f | Weight: %5.1f%% | Price: %.2f",
+                     ticker, score, weight * 100, price)
     
     # 7. Execute Trades
-    print(f"\n⚙️ Executing trades...")
+    log.info("Executing trades...")
     
     stats = {'open': 0, 'scale_in': 0, 'scale_out': 0, 'close': 0, 'hold': 0}
     
@@ -169,10 +173,10 @@ def run_position_aware_session(verbose: bool = True):
         stats[action.lower()] = stats.get(action.lower(), 0) + 1
         
         if verbose and action != 'HOLD':
-            print(f"   {action:<12} {ticker:<10} @ {price:.2f}")
+            log.info("   %-12s %-10s @ %.2f", action, ticker, price)
     
     # 8. Close unwanted positions
-    print(f"\n🧹 Cleaning up positions...")
+    log.info("Cleaning up positions...")
     allowed_symbols = top_picks['Ticker'].tolist()
     current_positions = portfolio.get_open_symbols()
     
@@ -187,7 +191,7 @@ def run_position_aware_session(verbose: bool = True):
             )
             stats['close'] = stats.get('close', 0) + 1
             if verbose:
-                print(f"   CLOSE        {symbol:<10} @ {price:.2f}")
+                log.info("   CLOSE        %-10s @ %.2f", symbol, price)
     
     # 9. Save state
     portfolio.save()
@@ -196,22 +200,17 @@ def run_position_aware_session(verbose: bool = True):
     final_value = portfolio.total_portfolio_value()
     realized_pnl = portfolio.realized_pnl
     
-    print(f"\n" + "-"*70)
-    print(f"📊 SESSION SUMMARY")
-    print(f"-"*70)
-    print(f"   Actions:")
-    print(f"     Open       : {stats.get('open', 0)}")
-    print(f"     Close      : {stats.get('close', 0)}")
-    print(f"     Scale In   : {stats.get('scale_in', 0)}")
-    print(f"     Scale Out  : {stats.get('scale_out', 0)}")
-    print(f"     Hold       : {stats.get('hold', 0)}")
-    print(f"\n   Portfolio:")
-    print(f"     Cash       : {portfolio.cash:,.0f} TL")
-    print(f"     Positions  : {portfolio.position_count()}")
-    print(f"     Total Value: {final_value:,.0f} TL")
-    print(f"     Realized PnL: {realized_pnl:,.2f} TL")
-    print(f"\n✅ Session completed")
-    print("="*70)
+    log.info("-" * 70)
+    log.info("SESSION SUMMARY")
+    log.info("-" * 70)
+    log.info("   Actions: Open=%d Close=%d ScaleIn=%d ScaleOut=%d Hold=%d",
+             stats.get('open', 0), stats.get('close', 0),
+             stats.get('scale_in', 0), stats.get('scale_out', 0),
+             stats.get('hold', 0))
+    log.info("   Portfolio: Cash=%,.0f TL | Positions=%d | Total=%,.0f TL | PnL=%,.2f TL",
+             portfolio.cash, portfolio.position_count(), final_value, realized_pnl)
+    log.info("Session completed")
+    log.info("=" * 70)
     
     return {
         'portfolio_value': final_value,
@@ -232,7 +231,7 @@ def reset_portfolio():
     portfolio.closed_trades = []
     
     portfolio.save()
-    print("✅ Portfolio reset to initial state")
+    log.info("Portfolio reset to initial state")
 
 
 if __name__ == "__main__":

@@ -58,8 +58,11 @@ cover/
 # Django stuff:
 *.log
 local_settings.py
+settings.yaml
 db.sqlite3
 db.sqlite3-journal
+api/backtest_jobs.db
+*.db
 
 # Flask stuff:
 instance/
@@ -141,17 +144,22 @@ cython_debug/
 .vscode/
 
 # Project Specific
-# Data (Keep small CSVs if needed, but ignore large datasets)
-# data/ # Commented out as user might want to keep small data
-# reports/ # Ignore generated reports
 reports/
 
-# Models (Ignore large binary files)
+# Data (large datasets)
+data/*.xlsx
+data/feature_store/*.pkl
+data/live_cache/
+
+# Models (large binary files)
+models/saved/
 models/*.h5
-models/*.pkl
-models/*.joblib
-models/*.pth
-models/*.pt
+
+# Training Logs
+lightning_logs/
+
+# Cache
+cache/
 
 # Logs
 *.log
@@ -169,6 +177,3 @@ Thumbs.db
 # Agentic
 .brain/
 .gemini/
-
-# Sensitive
-config.py

@@ -13,6 +13,10 @@ import numpy as np
 import json
 import os
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 
 class StrategyState(Enum):
     """Strateji durumu"""
@@ -340,50 +344,45 @@ class StrategyHealth:
     
     def print_health_report(self):
         """Sağlık raporu yazdır"""
-        print("\n" + "="*70)
-        print("🏥 STRATEGY HEALTH REPORT")
-        print("="*70)
+        log.info("=" * 70)
+        log.info("STRATEGY HEALTH REPORT")
+        log.info("=" * 70)
         
         # State
-        state_icons = {
-            StrategyState.ACTIVE: "🟢",
-            StrategyState.DEGRADED: "🟡",
-            StrategyState.PAUSED: "🟠",
-            StrategyState.DISABLED: "🔴"
-        }
-        icon = state_icons.get(self.state, "⚪")
-        print(f"\n{icon} State: {self.state.value}")
+        log.info("State: %s", self.state.value)
         if self.state_reason:
-            print(f"   Reason: {self.state_reason}")
+            log.info("   Reason: %s", self.state_reason)
         
         # Rolling Windows
-        print("\n📊 Rolling Performance:")
+        log.info("Rolling Performance:")
         for window in [20, 30, 50, 100]:
             m = self.get_rolling_metrics(window)
-            print(f"   [{window:>3}] WR: {m['win_rate']:>5.1f}% | Exp: {m['expectancy']:>7.2f} | Sharpe: {m['rolling_sharpe']:>5.2f} | PnL: {m['total_pnl']:>10.2f}")
+            log.info("   [%3d] WR: %5.1f%% | Exp: %7.2f | Sharpe: %5.2f | PnL: %10.2f",
+                     window, m['win_rate'], m['expectancy'], m['rolling_sharpe'], m['total_pnl'])
         
         # Regime Performance
-        print("\n🌡️ Regime Performance:")
+        log.info("Regime Performance:")
         regime_perf = self.calculate_regime_performance()
         if regime_perf:
             for regime, stats in regime_perf.items():
-                print(f"   {regime:<12} {stats['edge']} WR: {stats['win_rate']:>5.1f}% | PnL: {stats['total_pnl']:>10.2f} ({stats['trades']} trades)")
+                log.info("   %-12s %s WR: %5.1f%% | PnL: %10.2f (%d trades)",
+                         regime, stats['edge'], stats['win_rate'], stats['total_pnl'], stats['trades'])
         else:
-            print("   No regime data available")
+            log.info("   No regime data available")
         
         # Invalidation Check
-        print("\n⚠️ Invalidation Rules:")
+        log.info("Invalidation Rules:")
         new_state, reason = self.check_invalidation_rules()
         if new_state == StrategyState.ACTIVE:
-            print("   ✅ All rules passed")
+            log.info("   All rules passed")
         else:
-            print(f"   ❌ {reason}")
+            log.warning("   FAILED: %s", reason)
         
         # Consecutive Losses
         consec = self._get_consecutive_losses()
-        print(f"\n🔥 Consecutive Losses: {consec} / {self.MAX_CONSECUTIVE_LOSSES}")
+        log.info("Consecutive Losses: %d / %d", consec, self.MAX_CONSECUTIVE_LOSSES)
         
-        print("="*70)
+        log.info("=" * 70)
     
     def get_health_summary(self) -> dict:
         """Sağlık özeti dict olarak"""
@@ -638,9 +637,9 @@ def get_strategy_health_monitor(portfolio_state, equity_curve: List[float] = Non
 
 if __name__ == "__main__":
     # Demo with sample trades
-    print("\n" + "="*70)
-    print("🧪 STRATEGY HEALTH DEMO")
-    print("="*70)
+    log.info("=" * 70)
+    log.info("STRATEGY HEALTH DEMO")
+    log.info("=" * 70)
     
     # Create sample trades with varying performance
     sample_trades = [
@@ -662,31 +661,26 @@ if __name__ == "__main__":
     health.print_health_report()
     
     # Test new features
-    print("\n📊 New Features Demo:")
-    print("-" * 50)
+    log.info("New Features Demo:")
+    log.info("-" * 50)
+    log.info("Max Drawdown: %.2f%%", health.max_drawdown * 100)
+    log.info("High Water Mark: %,.2f", health.equity_high_water_mark)
     
-    # Max DD
-    print(f"Max Drawdown: {health.max_drawdown*100:.2f}%")
-    print(f"High Water Mark: {health.equity_high_water_mark:,.2f}")
-    
-    # Confidence threshold
     recommended_conf = health.get_recommended_confidence_threshold()
-    print(f"Current Confidence Threshold: {health.current_confidence_threshold}")
-    print(f"Recommended Threshold: {recommended_conf}")
+    log.info("Current Confidence Threshold: %s", health.current_confidence_threshold)
+    log.info("Recommended Threshold: %s", recommended_conf)
     
-    # State methods
-    print(f"\nCan Trade: {health.can_trade()}")
-    print(f"Can Live Trade: {health.can_live_trade()}")
-    print(f"Paper Only Mode: {health.is_paper_only_mode()}")
+    log.info("Can Trade: %s", health.can_trade())
+    log.info("Can Live Trade: %s", health.can_live_trade())
+    log.info("Paper Only Mode: %s", health.is_paper_only_mode())
     
-    # Save/Load test
     filepath = health.save_state()
-    print(f"\nState saved to: {filepath}")
+    log.info("State saved to: %s", filepath)
     
     health2 = StrategyHealth()
     loaded = health2.load_state()
-    print(f"State loaded: {loaded}")
-    print(f"Restored state: {health2.state.value}")
+    log.info("State loaded: %s", loaded)
+    log.info("Restored state: %s", health2.state.value)
     
-    print("="*70)
+    log.info("=" * 70)
 

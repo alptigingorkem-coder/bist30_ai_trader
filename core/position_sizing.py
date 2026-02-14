@@ -2,6 +2,10 @@
 import numpy as np
 import pandas as pd
 
+from utils.logging_config import get_logger
+
+log = get_logger(__name__)
+
 class KellyPositionSizer:
     def __init__(self, initial_fraction=0.25, max_fraction=0.50):
         self.initial_fraction = initial_fraction  # Fractional Kelly (Tam Kelly çok riskli olabilir)
@@ -68,6 +72,7 @@ if __name__ == "__main__":
     sizer = KellyPositionSizer()
     # Simüle edilmiş trade geçmişi
     import random
+
     random.seed(42)
     for _ in range(50):
         # %60 win rate, 1.5 risk/reward
@@ -76,4 +81,4 @@ if __name__ == "__main__":
         else:
             sizer.add_trade(-0.02) # %2 kaybet
             
-    print(f"Calculated Kelly Fraction: {sizer.calculate_kelly():.4f}")
+    log.info(f"Calculated Kelly Fraction: {sizer.calculate_kelly():.4f}")

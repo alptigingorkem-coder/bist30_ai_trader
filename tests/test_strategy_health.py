@@ -2,7 +2,7 @@
 Test suite for Strategy Health & Kill-Switch Module
 """
 
-import pytest
+import unittest
 import os
 import json
 import tempfile
@@ -14,14 +14,14 @@ from paper_trading.strategy_health import (
 )
 
 
-class TestRollingMetrics:
+class TestRollingMetrics(unittest.TestCase):
     """Test rolling performance windows"""
     
     def test_rolling_metrics_empty(self):
         health = StrategyHealth([])
         metrics = health.get_rolling_metrics(50)
-        assert metrics["trades"] == 0
-        assert metrics["win_rate"] == 0
+        self.assertEqual(metrics["trades"], 0)
+        self.assertEqual(metrics["win_rate"], 0)
     
     def test_rolling_metrics_basic(self):
         trades = [
@@ -32,24 +32,24 @@ class TestRollingMetrics:
         health = StrategyHealth(trades)
         metrics = health.get_rolling_metrics(50)
         
-        assert metrics["trades"] == 3
-        assert metrics["win_rate"] == pytest.approx(66.7, rel=0.1)
-        assert metrics["total_pnl"] == 250
+        self.assertEqual(metrics["trades"], 3)
+        self.assertAlmostEqual(metrics["win_rate"], 66.7, delta=0.1)
+        self.assertEqual(metrics["total_pnl"], 250)
     
     def test_all_rolling_windows(self):
         trades = [{"pnl": 100, "return_pct": 0.01}] * 100
         health = StrategyHealth(trades)
         
         windows = health.get_all_rolling_windows()
-        assert "window_30" in windows
-        assert "window_50" in windows
-        assert "window_100" in windows
-        assert windows["window_30"]["trades"] == 30
-        assert windows["window_50"]["trades"] == 50
-        assert windows["window_100"]["trades"] == 100
+        self.assertIn("window_30", windows)
+        self.assertIn("window_50", windows)
+        self.assertIn("window_100", windows)
+        self.assertEqual(windows["window_30"]["trades"], 30)
+        self.assertEqual(windows["window_50"]["trades"], 50)
+        self.assertEqual(windows["window_100"]["trades"], 100)
 
 
-class TestInvalidationRules:
+class TestInvalidationRules(unittest.TestCase):
     """Test hard invalidation rules"""
     
     def test_expectancy_disabled(self):
@@ -58,8 +58,8 @@ class TestInvalidationRules:
         health = StrategyHealth(trades)
         
         state, reason = health.check_invalidation_rules()
-        assert state == StrategyState.DISABLED
-        assert "Expectancy" in reason
+        self.assertEqual(state, StrategyState.DISABLED)
+        self.assertIn("Expectancy", reason)
     
     def test_consecutive_losses_paused(self):
         # Create 7 consecutive losing trades
@@ -67,8 +67,8 @@ class TestInvalidationRules:
         health = StrategyHealth(trades)
         
         state, reason = health.check_invalidation_rules()
-        assert state == StrategyState.PAUSED
-        assert "Ardışık" in reason
+        self.assertEqual(state, StrategyState.PAUSED)
+        self.assertIn("Ardışık", reason)
     
     def test_high_conf_winrate_degraded(self):
         # Create 20 high-confidence losing trades
@@ -76,8 +76,8 @@ class TestInvalidationRules:
         health = StrategyHealth(trades)
         
         state, reason = health.check_invalidation_rules()
-        assert state == StrategyState.DEGRADED
-        assert "High-conf" in reason
+        self.assertEqual(state, StrategyState.DEGRADED)
+        self.assertIn("High-conf", reason)
     
     def test_max_dd_paper_only(self):
         # Create equity curve with big drawdown
@@ -88,9 +88,9 @@ class TestInvalidationRules:
         health = StrategyHealth([], equity)
         
         state, reason = health.check_invalidation_rules()
-        assert state == StrategyState.PAPER_ONLY
-        assert "Max DD" in reason
-        assert health.paper_only_mode == True
+        self.assertEqual(state, StrategyState.PAPER_ONLY)
+        self.assertIn("Max DD", reason)
+        self.assertTrue(health.paper_only_mode)
     
     def test_active_state(self):
         # Create good trades
@@ -98,49 +98,49 @@ class TestInvalidationRules:
         health = StrategyHealth(trades)
         
         state, reason = health.check_invalidation_rules()
-        assert state == StrategyState.ACTIVE
-        assert "Tüm kurallar geçti" in reason
+        self.assertEqual(state, StrategyState.ACTIVE)
+        self.assertIn("Tüm kurallar geçti", reason)
 
 
-class TestStateTransitions:
+class TestStateTransitions(unittest.TestCase):
     """Test strategy state machine"""
     
     def test_initial_state(self):
         health = StrategyHealth([])
-        assert health.state == StrategyState.ACTIVE
+        self.assertEqual(health.state, StrategyState.ACTIVE)
     
     def test_state_history_tracking(self):
         health = StrategyHealth([])
         health.force_state(StrategyState.DEGRADED, "Test reason")
         
-        assert health.state == StrategyState.DEGRADED
-        assert len(health.state_history) == 1
-        assert health.state_history[0]["from"] == "ACTIVE"
-        assert health.state_history[0]["to"] == "DEGRADED"
+        self.assertEqual(health.state, StrategyState.DEGRADED)
+        self.assertEqual(len(health.state_history), 1)
+        self.assertEqual(health.state_history[0]["from"], "ACTIVE")
+        self.assertEqual(health.state_history[0]["to"], "DEGRADED")
     
     def test_can_trade_states(self):
         health = StrategyHealth([])
         
         health.state = StrategyState.ACTIVE
-        assert health.can_trade() == True
-        assert health.can_live_trade() == True
+        self.assertTrue(health.can_trade())
+        self.assertTrue(health.can_live_trade())
         
         health.state = StrategyState.DEGRADED
-        assert health.can_trade() == True
-        assert health.can_live_trade() == True
+        self.assertTrue(health.can_trade())
+        self.assertTrue(health.can_live_trade())
         
         health.state = StrategyState.PAPER_ONLY
-        assert health.can_trade() == True
-        assert health.can_live_trade() == False
+        self.assertTrue(health.can_trade())
+        self.assertFalse(health.can_live_trade())
         
         health.state = StrategyState.PAUSED
-        assert health.can_trade() == False
+        self.assertFalse(health.can_trade())
         
         health.state = StrategyState.DISABLED
-        assert health.can_trade() == False
+        self.assertFalse(health.can_trade())
 
 
-class TestMaxDrawdownTracking:
+class TestMaxDrawdownTracking(unittest.TestCase):
     """Test max drawdown tracking"""
     
     def test_max_dd_calculation(self):
@@ -148,33 +148,33 @@ class TestMaxDrawdownTracking:
         health = StrategyHealth([], equity)
         
         expected_dd = (100 - 115) / 115  # -13%
-        assert health.max_drawdown == pytest.approx(expected_dd, rel=0.01)
+        self.assertAlmostEqual(health.max_drawdown, expected_dd, delta=0.01)
     
     def test_update_equity(self):
         health = StrategyHealth([], [100000])
         
         health.update_equity(110000)  # New high
-        assert health.equity_high_water_mark == 110000
+        self.assertEqual(health.equity_high_water_mark, 110000)
         
         health.update_equity(100000)  # Drawdown
         expected_dd = (100000 - 110000) / 110000
-        assert health.max_drawdown == expected_dd
+        self.assertEqual(health.max_drawdown, expected_dd)
     
     def test_reset_max_dd(self):
         health = StrategyHealth([], [100000, 90000])
-        assert health.max_drawdown < 0
+        self.assertTrue(health.max_drawdown < 0)
         
         health.reset_max_dd_tracking()
-        assert health.max_drawdown == 0.0
-        assert health.paper_only_mode == False
+        self.assertEqual(health.max_drawdown, 0.0)
+        self.assertFalse(health.paper_only_mode)
 
 
-class TestDynamicConfidenceThreshold:
+class TestDynamicConfidenceThreshold(unittest.TestCase):
     """Test dynamic confidence threshold adjustment"""
     
     def test_default_threshold(self):
         health = StrategyHealth([])
-        assert health.current_confidence_threshold == 0.60
+        self.assertEqual(health.current_confidence_threshold, 0.60)
     
     def test_threshold_increase_on_poor_performance(self):
         # Poor high-conf performance: all losses
@@ -182,7 +182,7 @@ class TestDynamicConfidenceThreshold:
         health = StrategyHealth(trades)
         
         recommended = health.get_recommended_confidence_threshold()
-        assert recommended > health.DEFAULT_CONFIDENCE_THRESHOLD
+        self.assertGreater(recommended, health.DEFAULT_CONFIDENCE_THRESHOLD)
     
     def test_threshold_stable_on_good_performance(self):
         # Good high-conf performance: all wins
@@ -190,10 +190,10 @@ class TestDynamicConfidenceThreshold:
         health = StrategyHealth(trades)
         
         recommended = health.get_recommended_confidence_threshold()
-        assert recommended == health.DEFAULT_CONFIDENCE_THRESHOLD
+        self.assertEqual(recommended, health.DEFAULT_CONFIDENCE_THRESHOLD)
 
 
-class TestStatePersistence:
+class TestStatePersistence(unittest.TestCase):
     """Test save/load state"""
     
     def test_save_and_load(self):
@@ -211,33 +211,36 @@ class TestStatePersistence:
             health2 = StrategyHealth([])
             loaded = health2.load_state(filepath)
             
-            assert loaded == True
-            assert health2.state == StrategyState.DEGRADED
-            assert health2.current_confidence_threshold == 0.75
+            self.assertTrue(loaded)
+            self.assertEqual(health2.state, StrategyState.DEGRADED)
+            self.assertEqual(health2.current_confidence_threshold, 0.75)
         finally:
             os.unlink(filepath)
     
     def test_load_nonexistent_file(self):
         health = StrategyHealth([])
         loaded = health.load_state("nonexistent_file.json")
-        assert loaded == False
+        self.assertFalse(loaded)
 
 
-class TestIntegrationHelper:
+class TestIntegrationHelper(unittest.TestCase):
     """Test integration helper functions"""
     
     def test_check_strategy_health_returns_tuple(self):
         class MockPortfolio:
             closed_trades = []
+            
+            def calculate_equity_curve(self):
+                return [100]
         
         can_trade, message, recommendations = check_strategy_health(MockPortfolio())
         
-        assert isinstance(can_trade, bool)
-        assert isinstance(message, str)
-        assert isinstance(recommendations, dict)
-        assert "confidence_threshold" in recommendations
-        assert "position_size_multiplier" in recommendations
+        self.assertIsInstance(can_trade, bool)
+        self.assertIsInstance(message, str)
+        self.assertIsInstance(recommendations, dict)
+        self.assertIn("confidence_threshold", recommendations)
+        self.assertIn("position_size_multiplier", recommendations)
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    unittest.main()

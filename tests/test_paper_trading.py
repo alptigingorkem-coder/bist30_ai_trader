@@ -8,7 +8,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from paper_trading.portfolio_state import PortfolioState
-from paper_trading.position_engine import PositionExecutionEngine
+from paper_trading.position_engine import PositionEngine
 
 def test_position_flow():
     print("="*60)

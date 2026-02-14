@@ -1,9 +1,9 @@
 
 import pandas as pd
 import config
-from data_loader import DataLoader
-from feature_engineering import FeatureEngineer
-from regime_detection import MLRegimeClassifier
+from utils.data_loader import DataLoader
+from utils.feature_engineering import FeatureEngineer
+from models.regime_detection import MLRegimeClassifier
 
 def test_ml_regime():
     # 1. Load Data (Minimal)

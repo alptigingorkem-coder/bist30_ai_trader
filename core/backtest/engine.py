@@ -360,4 +360,9 @@ class BacktestEngineMixin:
         commission_cost = df['Trades'] * self.commission
 
         self.results = df
+        
+        # FIX: Calculate Missing Columns for Metrics Mixin
+        df['Net_Strategy_Return'] = df['Equity'].pct_change().fillna(0)
+        df['Cumulative_Strategy_Return'] = df['Equity'] / self.initial_capital
+        
         return df

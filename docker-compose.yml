@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    container_name: bist30_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=bist30_trader
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: bist30_app
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      - DB_HOST=timescaledb
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=bist30_trader
+      # Override HSA version for AMD GPU
+      - HSA_OVERRIDE_GFX_VERSION=10.3.0
+      # Use GPU device
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - .:/app
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - "44" # video
+      - "992" # render
+    # Command for background worker / trader (Optional if API handles everything)
+    command: python scripts/paper_trading_runner.py
+
+  api:
+    build: .
+    container_name: bist30_api
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      - DB_HOST=timescaledb
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=bist30_trader
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+
+  ui:
+    build: ./ui
+    container_name: bist30_ui
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+
+volumes:
+  timescaledb_data:

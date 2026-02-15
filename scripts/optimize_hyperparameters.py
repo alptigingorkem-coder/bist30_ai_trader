@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import lightgbm as lgb
 from sklearn.model_selection import TimeSeriesSplit
+from optuna.integration import LightGBMPruningCallback
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -74,13 +75,14 @@ def objective(trial):
              model.set_params(label_gain=list(range(int(max_label) + 1)))
         
         callbacks = [
-            lgb.early_stopping(stopping_rounds=20, verbose=False)
+            lgb.early_stopping(stopping_rounds=20, verbose=False),
+            LightGBMPruningCallback(trial, metric="ndcg@3", valid_name="valid_0")
         ]
         
         model.fit(
             X_train, y_train, group=q_train,
             eval_set=[(X_valid, y_valid)], eval_group=[q_valid],
-            eval_metric='ndcg',
+            eval_metric=['ndcg'],
             callbacks=callbacks
         )
         
@@ -149,7 +151,9 @@ if __name__ == "__main__":
     n_trials = 20
     print(f"Running Optuna for {n_trials} trials...")
     
-    study = optuna.create_study(direction='maximize')
+    # Use MedianPruner (Good for GBDT)
+    pruner = optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=5)
+    study = optuna.create_study(direction='maximize', pruner=pruner)
     study.optimize(objective, n_trials=n_trials)
     
     print("\n✅ Optimization Complete.")

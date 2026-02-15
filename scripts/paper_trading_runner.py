@@ -13,119 +13,135 @@ import config
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
 from core.risk_manager import RiskManager
+from core.execution import ExecutionManager
 import joblib
+
+from utils.logging_config import get_logger
+log = get_logger(__name__)
 
 class PaperTrader:
     def __init__(self):
         self.model_path = "models/saved/global_ranker.pkl"
         self.model = None
         self.loader = DataLoader()
-        self.risk_manager = RiskManager()
+        self.risk_manager = RiskManager() 
+        self.execution_manager = ExecutionManager(commission_rate=0.002)
+        
+        # 10.000 TL Başlangıç Sermayesi
+        self.initial_capital = 10000.0
         self.portfolio = {
-            'cash': 100000.0,
+            'cash': self.initial_capital,
             'holdings': {}, # ticker: qty
-            'equity': 100000.0,
+            'equity': self.initial_capital,
             'history': []
         }
         self.load_model()
-        print("🚀 Paper Trader Başlatıldı (Sanal Bakiye: 100,000 TL)")
+        log.info(f"🚀 Paper Trader Başlatıldı (Sanal Bakiye: {self.initial_capital:,.2f} TL)")
         
     def load_model(self):
         if os.path.exists(self.model_path):
             self.model = joblib.load(self.model_path)
-            print(f"✅ Model yüklendi: {self.model_path}")
+            log.info(f"✅ Model yüklendi: {self.model_path}")
         else:
-            print(f"❌ Model bulunamadı: {self.model_path}. Lütfen önce 'train_models.py' çalıştırın.")
+            log.error(f"❌ Model bulunamadı: {self.model_path}. Lütfen önce 'train_models.py' çalıştırın.")
             sys.exit(1)
 
     def update_market_data(self):
-        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Piyasa Verisi Kontrol Ediliyor...")
+        log.info("Piyasa Verisi Kontrol Ediliyor...")
 
     def check_signals(self):
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Sinyaller Taranıyor...")
+        log.info("Sinyaller Taranıyor...")
         
         for ticker in config.TICKERS:
             try:
-                # 1. Canlı Veri Çek (Makro veriler dahil)
-                # Model eğitimi get_combined_data ile yapıldığı için burada da onu kullanmalıyız.
+                # 1. Canlı Veri Çek
                 df = self.loader.get_combined_data(ticker)
                 
                 if df is None or df.empty: continue
                 
-                # Canlı simülasyon için son verinin güncel olup olmadığını kontrol edebiliriz
-                # ancak Yahoo verisi bazen gecikmeli gelir.
-                
                 # 2. Feature Engineering
-                # Son satır için feature hesapla
                 engineer = FeatureEngineer(df)
                 df_processed = engineer.process_all(ticker)
                 
                 if df_processed.empty: continue
                 
-                # Son veriyi al (Bugün/Dün kapanışı)
+                # Son veriyi al
                 last_row = df_processed.iloc[[-1]] 
-                current_price = last_row['Close'].values[0]
-                current_date = last_row.index[-1]
+                raw_price = last_row['Close'].values[0]
+                
+                # Execution Manager ile Fiyat Simülasyonu
+                current_price = self.execution_manager.simulate_slippage(raw_price)
                 
                 # Model Tahmini
                 if self.model:
                     # Feature Alignment
                     if hasattr(self.model, 'feature_name_'):
                         model_features = self.model.feature_name_
-                        
-                        # Eksik feature varsa 0 ile doldur
                         for f in model_features:
-                            if f not in last_row.columns:
-                                last_row[f] = 0
-                                
-                        # Fazla feature varsa at ve sıralamayı eşle
+                            if f not in last_row.columns: last_row[f] = 0
                         last_row = last_row[model_features]
                     
                     prediction = self.model.predict(last_row)
                     score = prediction[0]
                     
-                    # Loglama
-                    print(f"   {ticker:<10} | Fiyat: {current_price:.2f} | Skor: {score:.4f}")
+                    log.info(f"   {ticker:<10} | Fiyat: {current_price:.2f} | Skor: {score:.4f}")
                     
-                    # Basit Alım/Satım Mantığı (Risk Manager ile)
-                    # Mevcut pozisyon var mı?
+                    # --- İŞLEM MANTIĞI (EXECUTION) ---
                     in_position = ticker in self.portfolio['holdings'] and self.portfolio['holdings'][ticker] > 0
                     
-                    # Risk Manager Kontrolü (Stop Loss / Take Profit)
-                    # Not: Burada tam bir simülasyon için giriş fiyatını vb. tutmalıyız.
-                    # Basitleştirilmiş:
-                    
+                    # ALIM SİNYALİ (> 0.8)
                     if score > 0.8 and not in_position:
-                        # AL Sinyali
-                        qty = int(self.portfolio['cash'] * 0.10 / current_price) # %10 portföy
-                        if qty > 0:
-                            cost = qty * current_price
+                        target_allocation = self.portfolio['equity'] * 0.20 
+                        qty = self.execution_manager.calculate_optimal_lots(current_price, target_allocation)
+                        
+                        if self.execution_manager.validate_order(ticker, qty, current_price, self.portfolio['cash']):
+                            cost = qty * current_price * (1 + self.execution_manager.commission_rate)
                             self.portfolio['cash'] -= cost
                             self.portfolio['holdings'][ticker] = qty
-                            print(f"   🟢 ALIM YAPILDI: {ticker} x {qty} @ {current_price:.2f}")
+                            log.info(f"   🟢 ALIM YAPILDI: {ticker} x {qty} @ {current_price:.2f} (Tutar: {cost:.2f})")
                             
+                    # SATIŞ SİNYALİ (< 0.2)
                     elif score < 0.2 and in_position:
-                        # SAT Sinyali
                         qty = self.portfolio['holdings'][ticker]
-                        revenue = qty * current_price
+                        revenue = (qty * current_price) * (1 - self.execution_manager.commission_rate)
                         self.portfolio['cash'] += revenue
                         del self.portfolio['holdings'][ticker]
-                        print(f"   🔴 SATIŞ YAPILDI: {ticker} x {qty} @ {current_price:.2f}")
+                        log.info(f"   🔴 SATIŞ YAPILDI: {ticker} x {qty} @ {current_price:.2f} (Gelir: {revenue:.2f})")
                         
             except Exception as e:
-                print(f"   Hata ({ticker}): {e}")
+                log.error(f"   Hata ({ticker}): {e}")
 
     def run(self):
-        print("Otomatik pilot başlatılıyor... (CTRL+C ile durdurun)")
+        log.info("🕒 Gün Sonu (EOD) Trader Modu Başlatıldı.")
+        log.info("ℹ️  Sistem her gün saat 18:05'te (Piyasa Kapanış Seansı) işlem yapacak.")
+        
+        last_run_date = None
         
         while True:
-            self.check_signals()
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Bekleniyor (60 saniye)...")
-            time.sleep(60)
+            now = datetime.now()
+            target_hour = 18
+            target_minute = 5
+            
+            if last_run_date != now.date():
+                if now.hour == target_hour and now.minute >= target_minute:
+                    log.info(f"🔔 Piyasa Kapanış Seansı Başladı ({now.strftime('%H:%M')})!")
+                    self.check_signals()
+                    last_run_date = now.date()
+                    log.info(f"✅ Bugünü ({last_run_date}) tamamladık.")
+                else:
+                    if now.minute == 0 and now.second < 5:
+                        remaining = (datetime(now.year, now.month, now.day, target_hour, target_minute) - now).total_seconds() / 3600
+                        if remaining > 0:
+                            log.info(f"Kapanışa {remaining:.1f} saat var. Bekleniyor...")
+            
+            time.sleep(10)
 
 if __name__ == "__main__":
     trader = PaperTrader()
-    # Tek seferlik test
-    trader.check_signals()
-    # Sürekli döngüyü başlatmak için aşağıdaki satırı açın:
-    # trader.run()
+    
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == '--test':
+        log.info("🛠️ TEST MODU: 18:05 beklenmiyor, hemen çalıştırılıyor...")
+        trader.check_signals()
+    else:
+        trader.run()

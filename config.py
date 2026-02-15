@@ -1,5 +1,9 @@
 import platform
 import os
+
+# AMD GPU (ROCm) Fix for RDNA2 (RX 6000 series)
+os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
+
 import torch
 
 from utils.logging_config import get_logger
@@ -96,6 +100,19 @@ TICKERS = TIERS['TIER_1']
 BLACKLIST = []
 
 # --- SEKTÖREL SEGMENTASYON ---
+SECTOR_MAP = {
+    "TSKB.IS": "BANKING",
+    "EREGL.IS": "INDUSTRIAL",
+    "ODAS.IS": "ENERGY",
+    "TTKOM.IS": "TELECOM",
+    "AKBNK.IS": "BANKING",
+    "EKGYO.IS": "REIT",
+    "SISE.IS": "INDUSTRIAL",
+    "KOZAL.IS": "MINING",
+    "SAHOL.IS": "HOLDING",
+    "YKBNK.IS": "BANKING",
+    "XU100.IS": "INDEX"
+}
 # Hepsi A1 segmenti gibi işlem görebilir veya kendi karakterleri kullanılabilir.
 # Core hisselerin hepsi güçlü olduğu için A1 mantığı uygundur.
 SECTORS = {
@@ -162,7 +179,7 @@ TRAIN_END_DATE = _cfg("dates", "train_end", "2023-12-31")
 TEST_START_DATE = _cfg("dates", "test_start", "2024-01-01")
 
 # KAP Entegrasyonu
-ENABLE_KAP_FEATURES = _cfg("features", "enable_kap_features", False)
+ENABLE_KAP_FEATURES = _cfg("features", "enable_kap_features", True)
 
 
 
@@ -227,9 +244,12 @@ MIN_HOLDING_BY_SECTOR = {
 ATR_PERIOD = _cfg("indicators", "atr_period", 14)
 
 # Dinamik Stop/Profit (ATR Çarpanları)
-ATR_STOP_LOSS_MULTIPLIER = _cfg("risk", "stop_loss_atr_mult", 3.0)
+ATR_STOP_LOSS_MULTIPLIER = _cfg("risk", "stop_loss_atr_mult", 2.0)
 ATR_TAKE_PROFIT_MULTIPLIER = _cfg("risk", "take_profit_atr_mult", 15.0)
-ATR_TRAILING_STOP_MULTIPLIER = _cfg("risk", "trailing_stop_atr_mult", 3.0)
+ATR_TRAILING_STOP_MULTIPLIER = _cfg("risk", "trailing_stop_atr_mult", 2.0)
+
+# Devre Kesici (Circuit Breaker) - HARD LIMIT
+MAX_DRAWDOWN_LIMIT = _cfg("risk", "max_drawdown_limit", 0.25)
 
 # Sabit limitler
 MAX_STOP_LOSS_PCT = _cfg("risk", "max_stop_loss_pct", 0.10)

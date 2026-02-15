@@ -193,7 +193,7 @@ export default function BacktestPage() {
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                         <span className="text-sm font-medium text-slate-300">EĞİTİM DÖNEMİ</span>
-                        <Info size={14} className="text-slate-500" title="Model bu dönemdeki verilerle eğitilir" />
+                        <Info size={14} className="text-slate-500" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -214,7 +214,7 @@ export default function BacktestPage() {
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
                         <span className="text-sm font-medium text-slate-300">TEST DÖNEMİ</span>
-                        <Info size={14} className="text-slate-500" title="Backtest bu dönemde çalışır" />
+                        <Info size={14} className="text-slate-500" />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>

@@ -4,7 +4,18 @@ import numpy as np
 import config
 from datetime import datetime, timedelta
 
+# MONKEY PATCH REQUESTS FOR SSL (Docker Container Fix)
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+original_init = requests.Session.__init__
+def new_init(self, *args, **kwargs):
+    original_init(self, *args, **kwargs)
+    self.verify = False
+requests.Session.__init__ = new_init
+
 from utils.logging_config import get_logger
+from utils.db_manager import DBManager
 
 log = get_logger(__name__)
 
@@ -14,7 +25,9 @@ class DataLoader:
         self.end_date = end_date
         self.tickers = config.TICKERS
         self.macro_tickers = config.MACRO_TICKERS
+        self.macro_tickers = config.MACRO_TICKERS
         self._macro_cache = None # Macro verileri bir kez çekmek için
+        self.db = DBManager() # Database Connection
 
     def fetch_live_data(self, ticker, interval='1m', period='1d'):
         """
@@ -92,11 +105,13 @@ class DataLoader:
 
     def _check_data_quality(self, data, ticker):
         """Verinin mantıklı olup olmadığını kontrol eder (Sanity Check)."""
-        if data is None or data.empty: return False
+        if data is None or data.empty:
+            log.warning(f"  [Quality] {ticker}: Veri Boş veya None.")
+            return False
         
         # 1. Yeterli veri var mı?
         if len(data) < 10:
-            log.info(f"  [UYARI] {ticker}: Yetersiz veri ({len(data)} gün).")
+            log.warning(f"  [Quality] {ticker}: Yetersiz veri ({len(data)} gün).")
             return False
             
         # 2. Son güncel tarih kontrolü (Canlı moddaysa)
@@ -111,11 +126,12 @@ class DataLoader:
         crashes = daily_pct[daily_pct < -0.60]
         
         if not crashes.empty:
-            log.info(f"  [UYARI] {ticker}: Anormal fiyat düşüşü tespit edildi (Split Olabilir?):")
+            log.info(f"  [Quality] {ticker}: Anormal fiyat düşüşü tespit edildi (Split Olabilir?):")
             for d, val in crashes.items():
                 log.info(f"    - {d.date()}: {val:.2%}")
             # Otomatik düzeltme veya reddetme eklenebilir. Şimdilik uyarı.
             
+        log.info(f"  [Quality] {ticker}: Kalite kontrolü BAŞARILI. ({len(data)} bar)")
         return True
 
     def _fetch_fallback(self, ticker):
@@ -138,7 +154,7 @@ class DataLoader:
             end_d = datetime.now().strftime('%d-%m-%Y')
             start_d = pd.to_datetime(self.start_date).strftime('%d-%m-%Y')
             
-            # isyatirim kütüphanesi genelde T+2 gecikmeli olabilir veya temettü/bölünme verisi farklı olabilir.
+# isyatirim kütüphanesi genelde T+2 gecikmeli olabilir veya temettü/bölünme verisi farklı olabilir.
             # Ancak veri hiç yoksa, bu candır.
             df_is = fetch_stock_data(
                 symbols=[sym], 
@@ -194,27 +210,117 @@ class DataLoader:
             
         return None
 
-    def fetch_stock_data(self, ticker):
-        """Tek bir hisse senedi için veri çeker (Robust)."""
-        log.info(f"{ticker} verisi indiriliyor (Kaynak: Yahoo)...")
-        data = None
+    def sanitize_data(self, df, ticker):
+        """
+        BIST limitlerine ve veri kalitesine göre veriyi temizler.
+        1. Fiyat Marjı: High/Low > 1.25 (Esnek limit) -> Hatalı bar.
+        2. Kapanış <= 0 -> Hatalı.
+        3. Hacim = 0 veya NaN -> Hatalı (Tatil veya veri kaybı).
+        """
+        if df is None or df.empty: return df
         
-        # 1. Deneme: Yahoo Finance
+        initial_len = len(df)
+        
+        # 1. Sıfır/Negatif Fiyatlar
+        if 'Close' in df.columns:
+            df = df[df['Close'] > 0]
+        
+        # 2. Hacim Kontrolü (Hacimsiz günler)
+        if 'Volume' in df.columns:
+            # df = df.dropna(subset=['Volume'])
+            # Hacmi 0 olanları silme, sadece uyar veya kabul et.
+            # Bazı kaynaklarda hacim olmayabilir.
+            # df = df[df['Volume'] > 0]
+            pass
+            
+        # 3. Marj Kontrolü (High/Low)
+        if 'High' in df.columns and 'Low' in df.columns:
+            # Sadece Low > 0 olanlar
+            df = df[df['Low'] > 0]
+            
+            # Marj hesabı
+            margin = df['High'] / df['Low']
+            outliers = margin > 1.25
+            
+            if outliers.any():
+                bad_dates = df.index[outliers]
+                log.warning(f"  [{ticker}] {len(bad_dates)} adet 'Outlier' bar temizlendi (High/Low > 1.25).")
+                df = df[~outliers]
+                
+        final_len = len(df)
+        if initial_len != final_len:
+            log.info(f"  [{ticker}] Data Sanitization: {initial_len} -> {final_len} bar (%{100*(initial_len-final_len)/initial_len:.1f} temizlendi).")
+            
+        return df
+
+    def fetch_stock_data(self, ticker):
+        """
+        Tek bir hisse senedi için veri çeker (Hybrid: DB -> Yahoo).
+        1. Önce DB'den veriyi sorgula.
+        2. Veri yoksa veya eksikse Yahoo'dan çek ve DB'ye kaydet.
+        """
+        log.info(f"{ticker} verisi isteniyor...")
+        
+        # 1. DB Kontrolü
+        data = self.db.fetch_data(ticker, self.start_date, self.end_date)
+        
+        if data is not None and not data.empty:
+            # Veri güncel mi kontrol et (Basitçe son tarihe bak)
+            last_date = data.index[-1]
+            if (datetime.now() - last_date).days < 2:
+                log.info(f"  [DB] Veri güncel: {ticker} ({len(data)} bar)")
+                return self.sanitize_data(data, ticker)
+            else:
+                log.info(f"  [DB] Veri eski ({last_date.date()}), güncelleniyor...")
+        
+        # 2. Yahoo Finance (DB'de yoksa veya güncel değilse)
+        log.info(f"  [Yahoo] {ticker} indiriliyor...")
         try:
-            data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
+            new_data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False, group_by='ticker')
             
             # Yapısal Kontroller
-            if not data.empty:
-                if isinstance(data.columns, pd.MultiIndex):
-                    data.columns = data.columns.droplevel(1)
+            if not new_data.empty:
+                # MultiIndex sütun düzeltmesi (yfinance yeni versiyon)
+                if isinstance(new_data.columns, pd.MultiIndex):
+                    # Ticker seviyesini düşür
+                    try:
+                        # FIX: use new_data instead of data
+                        data = new_data.xs(ticker, axis=1, level=0)
+                    except KeyError:
+                        # Bazen level 0 ticker olmayabilir, direkt droplevel deneyelim
+                        if len(new_data.columns.levels) > 1:
+                            new_data.columns = new_data.columns.droplevel(0)
+                        data = new_data
+                else:
+                    data = new_data
                 
+                # Check emptiness again after manipulation
+                if data is None or data.empty:
+                    log.warning(f"  [Yahoo] Veri formatı işlenirken boşaldı: {ticker}")
+                    data = None
                 # Sütun varlık kontrolü
                 required = ['Open', 'High', 'Low', 'Close', 'Volume']
-                if not all(col in data.columns for col in required):
-                     log.warning(f"  [UYARI] Yahoo eksik sütun döndürdü.")
-                     data = None # Bad data
-                else:
-                    data = data[required]
+                missing = [col for col in required if col not in data.columns]
+                
+                if missing:
+                     log.warning(f"  [UYARI] Yahoo eksik sütun döndürdü: {missing}")
+                     # Eksik sütunları Close ile doldurmayı dene (Volume hariç)
+                     if 'Close' in data.columns:
+                         for col in missing:
+                             if col != 'Volume': data[col] = data['Close']
+                             else: data[col] = 0
+                     else:
+                         data = None # Kritik: Close yoksa veri çöp
+                
+                if data is not None:
+                    # Gerekli sütunları seç
+                    data = new_data[[c for c in required if c in new_data.columns]]
+                    
+                    # --- DATA SANITIZATION ---
+                    data = self.sanitize_data(data, ticker)
+                    
+                    # --- DB SAVE ---
+                    self.db.save_data(data, ticker)
             
         except Exception as e:
             log.error(f"  [HATA] Yahoo Finance bağlantı sorunu: {e}")
@@ -226,8 +332,11 @@ class DataLoader:
             is_valid = self._check_data_quality(data, ticker)
             
         if not is_valid:
-            log.error(f"  [UYARI] Birincil kaynak başarısız veya kalitesiz. Fallback devreye giriyor...")
+            log.warning(f"  [UYARI] Birincil kaynak başarısız veya kalitesiz. Fallback devreye giriyor...")
             data = self._fetch_fallback(ticker)
+            # Fallback verisi de sanitize edilebilir
+            if data is not None:
+                data = self.sanitize_data(data, ticker)
             
         return data
     

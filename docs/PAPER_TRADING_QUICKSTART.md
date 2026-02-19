@@ -4,6 +4,13 @@
 
 ## ⚡ Hızlı Başlangıç
 
+### ⚠️ ÖNEMLİ: Sadece BİR KEZ Başlat!
+
+Paper trading sistemini **bir kez başlatmanız yeterli**. Sistem:
+- ✅ Her gün saat 18:05'te otomatik çalışır
+- ✅ Tüm işlemleri otomatik kaydeder
+- ❌ Her gün yeniden başlatmanıza gerek YOK
+
 ### 1. Sistem Kontrolü (30 saniye)
 
 ```bash
@@ -12,7 +19,7 @@ python3 scripts/validation/paper_trading_readiness.py
 
 **Beklenen:** Skor >75%
 
-### 2. Paper Trading Başlat (10 saniye)
+### 2. Paper Trading Başlat (10 saniye) - SADECE BİR KEZ!
 
 ```bash
 # Arka planda çalıştır
@@ -20,7 +27,12 @@ nohup python3 scripts/ops/paper_trading_runner.py > logs/paper_trading.out 2>&1 
 
 # Process ID'yi kaydet
 echo $! > paper_trading.pid
+
+# Çıktı:
+# [1] 12345
 ```
+
+**🎉 Tamamlandı!** Sistem artık otomatik çalışıyor. Her gün 18:05'te işlem yapacak.
 
 ### 3. Çalıştığını Doğrula (5 saniye)
 
@@ -41,9 +53,11 @@ tail -20 logs/paper_trading_$(date +%Y%m%d).log
 
 ---
 
-## 📊 Günlük Komutlar
+## 📊 Günlük Komutlar (Opsiyonel İzleme)
 
-### Sabah Rutini (09:00)
+**NOT:** Sistem zaten otomatik çalışıyor. Bunlar sadece izleme için.
+
+### Sabah Rutini (09:00) - Opsiyonel
 
 ```bash
 # 1. Sistem durumu
@@ -56,7 +70,7 @@ python3 scripts/analysis/check_portfolio_status.py
 tail -50 logs/paper_trading_$(date -d "yesterday" +%Y%m%d).log | grep "ALIM\|SATIŞ"
 ```
 
-### Akşam Rutini (18:30)
+### Akşam Rutini (18:30) - Opsiyonel
 
 ```bash
 # 1. Bugünkü işlemler
@@ -69,7 +83,7 @@ python3 scripts/analysis/generate_daily_report.py
 python3 scripts/analysis/calculate_daily_sharpe.py
 ```
 
-### Haftalık Rutin (Pazar)
+### Haftalık Rutin (Pazar) - Opsiyonel
 
 ```bash
 # Haftalık rapor

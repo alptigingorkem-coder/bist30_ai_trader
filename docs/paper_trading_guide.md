@@ -32,6 +32,14 @@ Paper trading, algoritmik trading sisteminin gerçek piyasa koşullarında nası
 
 ## 🚀 Başlangıç: Paper Trading'i Başlatma
 
+### ⚠️ ÖNEMLİ: Sadece BİR KEZ Başlatılır!
+
+Paper trading sistemini **sadece bir kez** başlatmanız yeterli. Sistem:
+- ✅ 7/24 arka planda çalışır
+- ✅ Her gün saat 18:05'te otomatik işlem yapar
+- ✅ Tüm işlemleri otomatik kaydeder
+- ❌ Her gün yeniden başlatmanıza gerek YOK
+
 ### Adım 1: Sistem Kontrolü
 
 ```bash
@@ -41,34 +49,63 @@ python3 scripts/validation/paper_trading_readiness.py
 # Skor %75+ olmalı
 ```
 
-### Adım 2: Paper Trading'i Başlat
+### Adım 2: Paper Trading'i Başlat (Sadece BİR KEZ!)
 
 ```bash
-# Terminal 1: Paper Trading Runner
-python3 scripts/ops/paper_trading_runner.py
+# Terminal 1: Paper Trading Runner (Arka planda)
+nohup python3 scripts/ops/paper_trading_runner.py > logs/paper_trading.out 2>&1 &
+
+# Process ID'yi kaydet (durdurmak için gerekli)
+echo $! > paper_trading.pid
 
 # Çıktı:
-# 🚀 Paper Trader Başlatıldı (Sanal Bakiye: 10,000.00 TL)
-# ✅ Model yüklendi: models/saved/global_ranker.pkl
-# 🕒 Gün Sonu (EOD) Trader Modu Başlatıldı.
-# ℹ️  Sistem her gün saat 18:05'te işlem yapacak.
+# [1] 12345  (Process ID)
 ```
 
-### Adım 3: Log Takibi
+**Sistem Mesajları:**
+```
+🚀 Paper Trader Başlatıldı (Sanal Bakiye: 10,000.00 TL)
+✅ Model yüklendi: models/saved/global_ranker.pkl
+🕒 Gün Sonu (EOD) Trader Modu Başlatıldı.
+ℹ️  Sistem her gün saat 18:05'te işlem yapacak.
+Kapanışa 8.1 saat var. Bekleniyor...
+```
+
+**🎉 Tebrikler! Artık sistem otomatik çalışıyor.**
+
+- Her gün 18:05'te otomatik işlem yapacak
+- Bilgisayarınız açık olduğu sürece çalışmaya devam edecek
+- Loglar otomatik kaydedilecek
+- Yeniden başlatmanıza gerek yok
+
+### Adım 3: Çalıştığını Doğrula
 
 ```bash
-# Terminal 2: Log takibi
-tail -f logs/paper_trading_$(date +%Y%m%d).log
+# Process kontrolü
+ps aux | grep paper_trading_runner
 
-# Veya tüm logları izle
-tail -f logs/*.log
+# Çıktı:
+# user  12345  0.5  2.1  ... python3 scripts/ops/paper_trading_runner.py
+
+# Log kontrolü
+tail -20 logs/paper_trading.out
+
+# Veya günlük log
+tail -f logs/paper_trading_$(date +%Y%m%d).log
 ```
+
+**✅ Sistem Hazır!** Artık sadece izlemeniz yeterli.
 
 ---
 
 ## 📊 Günlük Rutin (Her Gün Yapılacaklar)
 
-### 🌅 Sabah Rutini (09:00 - 10:00)
+### ⚠️ NOT: Sistem Otomatik Çalışıyor!
+
+Aşağıdaki rutinler **opsiyonel izleme** içindir. Sistem zaten otomatik çalışıyor.
+Sadece performansı takip etmek ve anomalileri tespit etmek için yapılır.
+
+### 🌅 Sabah Rutini (09:00 - 10:00) - Opsiyonel
 
 #### 1. Sistem Durumu Kontrolü
 

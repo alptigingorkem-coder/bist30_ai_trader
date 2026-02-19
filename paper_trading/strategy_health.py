@@ -14,8 +14,14 @@ import json
 import os
 
 from utils.logging_config import get_logger
+import config
+from models.regime_detector import RegimeDetector
 
 log = get_logger(__name__)
+
+class ConfigWrapper:
+    def __init__(self, module): self.module = module
+    def get(self, name, default=None): return getattr(self.module, name, default)
 
 
 class StrategyState(Enum):
@@ -69,14 +75,87 @@ class StrategyHealth:
         # Dynamic confidence threshold
         self.current_confidence_threshold = self.DEFAULT_CONFIDENCE_THRESHOLD
         
+        
         # Calculate initial max DD if equity curve provided
         if self.equity_curve:
             self._calculate_max_drawdown()
+
+        # Initialize RegimeDetector
+        try:
+            self.regime_detector = RegimeDetector(ConfigWrapper(config))
+            log.info("✅ RegimeDetector entegre edildi (StrategyHealth)")
+        except Exception as e:
+            log.warning(f"⚠️ RegimeDetector başlatılamadı: {e}")
+            self.regime_detector = None
+            
+        self.metrics = {
+            'current_regime': 'UNKNOWN',
+            'regime_changes_today': 0,
+            'trading_allowed': True,
+            'health_score': 100
+        }
         
     def update_trades(self, trades: List[dict]):
         """Trade listesini güncelle"""
         self.trades = trades
         self._evaluate_state()
+
+    def update(self, market_data):
+        """
+        Strategy health'i güncelle (Market verisi ile).
+        
+        Args:
+            market_data: Market göstergeleri (VIX, SMA, ATR)
+        """
+        if not self.regime_detector:
+            return
+
+        # Rejim tespit et
+        regime = self.regime_detector.detect_regime(market_data)
+        
+        # Rejim değişti mi?
+        if regime != self.metrics['current_regime']:
+            self.metrics['regime_changes_today'] += 1
+            log.info(f"🔄 Regime değişti: {self.metrics['current_regime']} -> {regime}")
+        
+        self.metrics['current_regime'] = regime
+        
+        # Trading aksiyonu
+        action = self.regime_detector.get_trading_action(regime)
+        self.metrics['trading_allowed'] = action['trade']
+        self.metrics['position_multiplier'] = action['position_multiplier']
+        
+        # Health skoru hesapla
+        self._calculate_health_score()
+
+    def _calculate_health_score(self):
+        """
+        Genel health skoru (0-100).
+        """
+        score = 100
+        
+        # Rejim instabilitesi
+        if self.metrics['regime_changes_today'] > 3:
+            score -= 20
+        
+        # Kriz/Volatil rejim
+        if self.metrics.get('current_regime') in ['CRISIS', 'VOLATILE', 'Crash_Bear']:
+            score -= 30
+        
+        # Trading kapalı
+        if not self.metrics.get('trading_allowed', True):
+            score -= 20
+            
+        # Drawdown cezası
+        if abs(self.max_drawdown) > 0.10:
+             score -= int(abs(self.max_drawdown) * 100)
+        
+        self.metrics['health_score'] = max(0, score)
+        return self.metrics['health_score']
+    
+    def is_healthy(self):
+        """Strateji sağlıklı mı?"""
+        return self.metrics.get('health_score', 100) > 50
     
     # ─────────────────────────────────────────────────────────────
     # ROLLING PERFORMANCE WINDOWS

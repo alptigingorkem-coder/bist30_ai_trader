@@ -64,15 +64,82 @@ class ExecutionManager:
             
         return True
 
-    def simulate_slippage(self, price):
+    def simulate_slippage(self, price, order_type="MARKET"):
         """
         Küçük yatırımcı için Spread ve Slippage maliyetini simüle eder.
-        Kapanış Fiyatı (Close) genellikle "Orta Nokta" gibidir.
-        Alırken biraz daha pahalıya (Ask), satarken ucuza (Bid) satarız.
-        
-        Varsayım: %0.1 (Binde 1) Spread/Slippage maliyeti.
         """
-        spread_impact = 0.001 
-        # Alış simülasyonu için fiyatı artır (Kötümser senaryo)
-        executed_price = price * (1 + spread_impact)
-        return executed_price
+        # MARKET emirlerde spread ödenir (%0.1)
+        if order_type == "MARKET":
+            spread_impact = 0.001 
+            return price * (1 + spread_impact)
+        
+        # LIMIT emirlerde (Passive) spread kazanılır veya ödenmez
+        # Ancak gerçekleşmeme riski vardır (Backtest'te bunu simüle etmek zor, 
+        # o yüzden sadece fiyat avantajı veriyoruz)
+        elif order_type == "LIMIT":
+            return price # Spread ödenmez (Midpoint/Passive varsayımı)
+            
+        return price
+
+from enum import Enum
+
+class OrderType(Enum):
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+
+class Urgency(Enum):
+    HIGH = "HIGH"       # Hemen al/sat (Stop Loss, Kriz)
+    NORMAL = "NORMAL"   # Standart sinyal
+    LOW = "LOW"         # Pasif biriktirme (Rebalance)
+
+class SmartOrderRouter:
+    """
+    Head of Quant Recommendation:
+    Basit Market Emirleri yerine, aciliyete göre emir tipi seçen akıllı yönlendirici.
+    """
+    def __init__(self, execution_manager: ExecutionManager):
+        self.em = execution_manager
+        
+    def generate_order(self, symbol: str, side: str, price: float, quantity: int, urgency: Urgency = Urgency.NORMAL) -> dict:
+        """
+        Duruma uygun emir tipini ve fiyatını belirler.
+        """
+        order = {
+            "symbol": symbol,
+            "side": side,
+            "quantity": quantity,
+            "original_price": price,
+            "urgency": urgency.value
+        }
+        
+        # 1. Acil Durumlar (Stop Loss, Crash Protection) -> MARKET EMİR
+        if urgency == Urgency.HIGH:
+            order["type"] = OrderType.MARKET
+            # Market emirde fiyat garantisi yoktur, o anki fiyattan (veya daha kötüden) gerçekleşir
+            # Backtest simülasyonu için slippage eklenmiş fiyatı kullanacağız
+            order["price"] = self.em.simulate_slippage(price, "MARKET")
+            order["note"] = "High Urgency: Market Order sent for immediate execution."
+            
+        # 2. Normal Sinyal (Trend Takibi) -> LIMIT EMİR (Aggressive)
+        # Karşı taraftan (Ask/Bid) alarak garantiye çalışır ama Market kadar agresif değildir.
+        elif urgency == Urgency.NORMAL:
+            order["type"] = OrderType.LIMIT
+            # Alışta Ask (Price), Satışta Bid (Price)
+            # Limit emir olduğu için slippage minimumdur, ancak spread ödenir.
+            order["price"] = price 
+            order["note"] = "Normal Urgency: Limit Order at Market Price."
+            
+        # 3. Pasif (Rebalance, Accumulation) -> LIMIT EMİR (Passive)
+        # Tahtaya yazılır, spread ödenmez.
+        elif urgency == Urgency.LOW:
+            order["type"] = OrderType.LIMIT
+            # Spread avantajı (Orta nokta veya daha iyi)
+            # Simülasyon: Fiyatı %0.05 iyileştir
+            improvement = 0.0005
+            if side == "BUY":
+                order["price"] = price * (1 - improvement)
+            else:
+                order["price"] = price * (1 + improvement)
+            order["note"] = "Low Urgency: Passive Limit Order (Midpoint)."
+            
+        return order

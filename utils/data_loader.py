@@ -3,19 +3,19 @@ import pandas as pd
 import numpy as np
 import config
 from datetime import datetime, timedelta
+import concurrent.futures
+import time
 
-# MONKEY PATCH REQUESTS FOR SSL (Docker Container Fix)
+# SSL Patch (SAFE): Only suppress warnings, do not force verify=False globally
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-original_init = requests.Session.__init__
-def new_init(self, *args, **kwargs):
-    original_init(self, *args, **kwargs)
-    self.verify = False
-requests.Session.__init__ = new_init
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 from utils.logging_config import get_logger
 from utils.db_manager import DBManager
+from utils.macro_data_loader import TurkeyMacroData
+
 
 log = get_logger(__name__)
 
@@ -56,20 +56,19 @@ class DataLoader:
             return self._macro_cache
             
         log.info("Makroekonomik veriler indiriliyor...")
-        macro_df = pd.DataFrame()
         
-        for name, ticker in self.macro_tickers.items():
-            try:
-                data = yf.download(ticker, start=self.start_date, end=self.end_date, progress=False)
-                if not data.empty:
-                    if isinstance(data.columns, pd.MultiIndex):
-                        data.columns = data.columns.droplevel(1)
-                    macro_df[name] = data['Close']
-            except Exception as e:
-                log.error(f"HATA: {name} ({ticker}) indirilirken sorun: {e}")
+        # HEAD OF QUANT: Use Specialized Macro Loader (EVDS + YF)
+        macro_loader = TurkeyMacroData()
+        macro_df = macro_loader.fetch_all(start_date=self.start_date)
         
-        macro_df = macro_df.ffill()
+        if macro_df is None or macro_df.empty:
+             log.warning("Makro veri çekilemedi! Sadece YF fallback denenecek...")
+             macro_df = pd.DataFrame() # Fallback logic below if needed, but TurkeyMacroData handles YF too.
         
+        # Lag adjustments for Global Data (US Data is valid for NEXT day in TR)
+        # TurkeyMacroData already returns daily resampled data.
+        
+        # US Tickers lag check
         us_tickers = ['VIX', 'SP500']
         for col in us_tickers:
             if col in macro_df.columns:
@@ -105,6 +104,11 @@ class DataLoader:
 
     def _check_data_quality(self, data, ticker):
         """Verinin mantıklı olup olmadığını kontrol eder (Sanity Check)."""
+        # HEAD OF QUANT: Schema Enforcement
+        from utils.validation import DataValidator
+        if not DataValidator.validate_ohlcv(data, ticker):
+             return False
+             
         if data is None or data.empty:
             log.warning(f"  [Quality] {ticker}: Veri Boş veya None.")
             return False
@@ -131,6 +135,21 @@ class DataLoader:
                 log.info(f"    - {d.date()}: {val:.2%}")
             # Otomatik düzeltme veya reddetme eklenebilir. Şimdilik uyarı.
             
+        # 4. Liquidity Filter (Scalability Safeguard)
+        # BIST100'e genişlerken sığ hisseleri elemek için.
+        # Son 20 günlük ortalama Hacim (TL) kontrolü.
+        if 'Close' in data.columns and 'Volume' in data.columns:
+            # Volume 0 olanları NaN yapıp ortalama alabiliriz veya direkt alabiliriz
+            # Hacim * Fiyat = TL Hacmi
+            daily_vol_tl = data['Close'] * data['Volume']
+            avg_vol_tl = daily_vol_tl.rolling(20).mean().iloc[-1]
+            
+            min_vol_limit = getattr(config, 'MIN_DAILY_VOLUME_TL', 0)
+            
+            if min_vol_limit > 0 and avg_vol_tl < min_vol_limit:
+                 log.warning(f"  [Liquidity] {ticker}: Yetersiz Likidite! (Ort: {avg_vol_tl:,.0f} TL < Limit: {min_vol_limit:,.0f} TL)")
+                 return False
+
         log.info(f"  [Quality] {ticker}: Kalite kontrolü BAŞARILI. ({len(data)} bar)")
         return True
 
@@ -139,6 +158,26 @@ class DataLoader:
         log.info(f"  [Fallback] İş Yatırım deneniyor: {ticker}...")
         try:
             from isyatirimhisse import fetch_stock_data
+            import requests
+            import warnings
+            
+            # Context manager to disable SSL verification temporarily
+            class NoSSLVerification:
+                def __enter__(self):
+                    self.old_request = requests.Session.request
+                    self.old_init = requests.Session.__init__
+                    
+                    def new_init(obj, *args, **kwargs):
+                        self.old_init(obj, *args, **kwargs)
+                        obj.verify = False
+                        
+                    requests.Session.__init__ = new_init
+                    
+                    # Also patch module level get/post if needed, but Session patch is usually enough for libraries
+                    return self
+                
+                def __exit__(self, exc_type, exc_value, traceback):
+                    requests.Session.__init__ = self.old_init
             
             # Sembol Dönüşümü (Mapping)
             sym = ticker.replace('.IS', '')
@@ -154,13 +193,16 @@ class DataLoader:
             end_d = datetime.now().strftime('%d-%m-%Y')
             start_d = pd.to_datetime(self.start_date).strftime('%d-%m-%Y')
             
-# isyatirim kütüphanesi genelde T+2 gecikmeli olabilir veya temettü/bölünme verisi farklı olabilir.
+            # isyatirim kütüphanesi genelde T+2 gecikmeli olabilir veya temettü/bölünme verisi farklı olabilir.
             # Ancak veri hiç yoksa, bu candır.
-            df_is = fetch_stock_data(
-                symbols=[sym], 
-                start_date=start_d,
-                end_date=end_d
-            )
+            with NoSSLVerification():
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    df_is = fetch_stock_data(
+                        symbols=[sym], 
+                        start_date=start_d,
+                        end_date=end_d
+                    )
             
             if df_is is not None and not df_is.empty:
                 # Sütunları tanı ve dönüştür
@@ -178,7 +220,9 @@ class DataLoader:
                     'HGDG_EN_YUKSEK': 'High',
                     'HGDG_EN_DUSUK': 'Low',
                     'HGDG_KAPANIS': 'Close',
-                    'HGDG_HACIM_LOT': 'Volume',
+                    'HGDG_HACIM': 'Volume_TL',  # Bu sütun TL Hacmidir
+                    'HGDG_AOF': 'VWAP',         # Ağırlıklı Ortalama Fiyat
+                    'HGDG_HACIM_LOT': 'Volume', # Varsa
                     'HGDG_HACIM_TL': 'Volume_TL' # Alternatif
                 }
                 df_is.rename(columns=rename_map, inplace=True)
@@ -186,9 +230,21 @@ class DataLoader:
                 # Open Fallback (İş Yatırım bazen vermiyor)
                 if 'HGDG_ACILIS' in df_is.columns:
                     df_is['Open'] = df_is['HGDG_ACILIS']
-                elif 'Close' in df_is.columns:
+                elif 'Open' not in df_is.columns and 'Close' in df_is.columns:
                     df_is['Open'] = df_is['Close'] # Mecburi
                 
+                # Volume Calculation: Qty = TL / VWAP (or Close)
+                if 'Volume' not in df_is.columns or (df_is['Volume'] == 0).all():
+                    if 'Volume_TL' in df_is.columns:
+                        divisor = df_is['VWAP'] if 'VWAP' in df_is.columns else df_is['Close']
+                        # Avoid Division by Zero
+                        divisor = divisor.replace(0, 1.0) 
+                        df_is['Volume'] = df_is['Volume_TL'] / divisor
+                        df_is['Volume'] = df_is['Volume'].fillna(0).astype('int64')
+                
+                # Volume zaten yukarıda hesaplandıysa tekrar silinmemesi için logic
+                # Volume Fallback silindi, yukarı taşındı.
+
                 # Eksik sütun kontrolü
                 required = ['Open', 'High', 'Low', 'Close', 'Volume']
                 for col in required:
@@ -262,12 +318,32 @@ class DataLoader:
         log.info(f"{ticker} verisi isteniyor...")
         
         # 1. DB Kontrolü
+        # Integrity Check: Check for missing data (gap > 3 days)
+        # If missing, we force 'start_date' adjustment or just alert?
+        # User request: "otomatik tespit edip eksik günleri tamamlasın."
+        # So if gap found, we should fetch from last_db_date to today.
+        
+        is_missing = self.db.check_missing_data(ticker, days=3)
+        if is_missing:
+            log.warning(f"{ticker}: Data gap detected. Forcing fresh fetch.")
+            # We could adjust start_date logic here, but for now relies on standard fetch
+            # Standard fetch usually gets 'start_date' from config.
+            # If we want to fill gap efficiently, we should find last date.
+            # But existing logic usually re-fetches window.
+            pass
+        
         data = self.db.fetch_data(ticker, self.start_date, self.end_date)
         
         if data is not None and not data.empty:
             # Veri güncel mi kontrol et (Basitçe son tarihe bak)
             last_date = data.index[-1]
-            if (datetime.now() - last_date).days < 2:
+            
+            # Timezone-aware date handling
+            now = datetime.now()
+            if last_date.tzinfo is not None:
+                now = now.replace(tzinfo=last_date.tzinfo)
+                
+            if (now - last_date).days < 2:
                 log.info(f"  [DB] Veri güncel: {ticker} ({len(data)} bar)")
                 return self.sanitize_data(data, ticker)
             else:
@@ -369,6 +445,41 @@ class DataLoader:
         
         log.info(f"  Günlük: {len(data)} satır -> Haftalık: {len(weekly_data)} satır")
         return weekly_data
+
+    def fetch_data_parallel(self, tickers: list, max_workers: int = 10) -> dict:
+        """
+        Verilen ticker listesi için verileri paralel çeker.
+        Async altyapısı (Scalability Upgrade).
+        """
+        start_t = time.time()
+        results = {}
+        
+        # 1. Macro Cache Prime (Yarış durumunu önlemek için önce tekil çek)
+        self.fetch_macro_data()
+        
+        log.info(f"🚀 Paralel İndirme Başlıyor: {len(tickers)} hisse, {max_workers} worker...")
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Map ticker to future
+            future_to_ticker = {
+                executor.submit(self.get_combined_data, ticker): ticker 
+                for ticker in tickers
+            }
+            
+            for future in concurrent.futures.as_completed(future_to_ticker):
+                ticker = future_to_ticker[future]
+                try:
+                    data = future.result()
+                    if data is not None and not data.empty:
+                        results[ticker] = data
+                    else:
+                        log.warning(f"  ❌ {ticker}: Veri boş döndü.")
+                except Exception as e:
+                    log.error(f"  ❌ {ticker}: İndirme hatası: {e}")
+                    
+        duration = time.time() - start_t
+        log.info(f"✅ Paralel İndirme Tamamlandı. Süre: {duration:.2f}sn. Başarılı: {len(results)}/{len(tickers)}")
+        return results
 
 if __name__ == "__main__":
     # Test

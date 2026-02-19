@@ -49,8 +49,8 @@ def evaluate():
             fe = FeatureEngineer(raw_data)
             df = fe.process_all(ticker=ticker)
             
-            # Merge Macro
-            df = df.join(macro_df, how='left')
+            # Makro veriler zaten get_combined_data içinde eklenmiş
+            # Tekrar eklemeye gerek yok
             
             df['Ticker'] = ticker
             

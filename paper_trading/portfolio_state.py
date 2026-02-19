@@ -59,6 +59,9 @@ class PortfolioState:
 
         # BACKTEST LOG (completed trades)
         self.closed_trades: List[dict] = []
+        
+        # FAZ 5.1C: Peak Equity for Drawdown Tracking
+        self.peak_equity = initial_capital
 
         self._load_state()
 
@@ -289,6 +292,7 @@ class PortfolioState:
                 self.realized_pnl = state.get("realized_pnl", 0.0)
                 self.trade_history = state.get("trade_history", [])
                 self.closed_trades = state.get("closed_trades", [])
+                self.peak_equity = state.get("peak_equity", self.initial_capital)
 
     def _save_state(self):
         os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
@@ -300,6 +304,7 @@ class PortfolioState:
                     "realized_pnl": self.realized_pnl,
                     "trade_history": self.trade_history,
                     "closed_trades": self.closed_trades,
+                    "peak_equity": self.peak_equity,
                 },
                 f,
                 indent=2,

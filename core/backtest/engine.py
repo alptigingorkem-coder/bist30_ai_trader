@@ -13,39 +13,43 @@ class BacktestEngineMixin:
 
     def calculate_slippage(self, volume: float, avg_volume: float, position_size_qty: float) -> float:
         """
-        FIX 19: Gerçekçi slippage hesabı.
-        Eğer hacim bilgisi yoksa varsayılan sabit değer döner.
+        FIX 19: Gerçekçi slippage hesabı (Spread + Market Impact).
+        Kümülatif maliyet oranını döner.
         """
         if pd.isna(volume) or pd.isna(avg_volume) or avg_volume == 0:
             return 0.001
 
-        volume_impact = position_size_qty / avg_volume
-
-        if volume_impact < 0.01:
-            return 0.0002
-        elif volume_impact < 0.05:
-            return 0.0005
+        volume_ratio = position_size_qty / avg_volume
+        
+        # 1. Base Spread (Liquidity based)
+        base_slippage = 0.0005
+        if volume_ratio < 0.01:
+            base_slippage = 0.0002
+        elif volume_ratio < 0.05:
+            base_slippage = 0.0005
         else:
-            return 0.001
+            base_slippage = 0.001
 
-    def apply_market_impact(self, price: float, size_qty: float, avg_volume: float, is_buy: bool = True) -> float:
+        # 2. Market Impact (Size based)
+        # Kurumsal Denetim: Double Counting'i önlemek için impact buraya dahil edildi.
+        market_impact = 0.0
+        if volume_ratio > 0.10:
+            # Her %10 fazlalık için %5 impact (Kurumsal Düzeltme)
+            # Örnek: %50 volume -> (0.5 - 0.1) * 0.05 = 0.02 (%2)
+            market_impact = (volume_ratio - 0.10) * 0.05
+            
+        return base_slippage + market_impact
+
+
+
+    def _get_market_indicators(self, current_slice: pd.DataFrame) -> pd.DataFrame:
         """
-        FIX 20: Büyük pozisyonlar fiyatı hareket ettirir.
+        Rejim tespiti için gerekli market-wide göstergeleri hazırla.
+        Single-asset modunda olduğumuz için mevcut df slice'ı kullanıyoruz.
+        Bu df zaten VIX, USDTRY vb. makro verileri içeriyor olmalı.
         """
-        if pd.isna(avg_volume) or avg_volume == 0:
-            return price
+        return current_slice
 
-        volume_impact = size_qty / avg_volume
-
-        if volume_impact > 0.10:
-            impact = (volume_impact - 0.10) * 0.001
-
-            if is_buy:
-                return price * (1 + impact)
-            else:
-                return price * (1 - impact)
-
-        return price
 
     def run_backtest(
         self, 
@@ -144,6 +148,38 @@ class BacktestEngineMixin:
         peak_equity = equity
         circuit_breaker_triggered = False
 
+        # --- REGIME DETECTION INTEGRATION ---
+        from models.regime_detector import RegimeDetector
+        # HEAD OF QUANT: Execution Manager & SOR
+        from core.execution import ExecutionManager, SmartOrderRouter, Urgency
+        
+        # Initialize SOR
+        exec_manager = ExecutionManager(commission_rate=getattr(self, 'commission', 0.002))
+        router = SmartOrderRouter(exec_manager)
+        
+        # Create a config wrapper/dict for RegimeDetector
+        regime_config = {
+            'REGIME_THRESHOLDS': getattr(config, 'REGIME_THRESHOLDS', {}),
+            'REGIME_ACTIONS': getattr(config, 'REGIME_ACTIONS', {})
+        }
+        regime_detector = RegimeDetector(regime_config)
+        
+        print("  Regime Detection Running...")
+        
+        # FIX: Pre-calculate ATR Moving Average
+        if 'ATR' in df.columns and 'ATR_MA_60' not in df.columns:
+             df['ATR_MA_60'] = df['ATR'].rolling(60).mean().bfill() 
+             
+        if 'Log_Return' not in df.columns:
+            df['Log_Return'] = np.log(df['Close'] / df['Close'].shift(1))
+            
+        if 'Volatility_20' not in df.columns:
+            df['Volatility_20'] = df['Log_Return'].rolling(20).std().fillna(0) # Keep 0 or small number
+        
+        regimes = [None] * len(df)
+        order_types = [None] * len(df) # NEW: Track Order Type
+        execution_notes = [None] * len(df) # NEW: Track Notes
+
         for i in range(1, len(df)):
             current_close = prices[i]
             current_open = opens[i]
@@ -175,12 +211,24 @@ class BacktestEngineMixin:
 
             dd = (equity - peak_equity) / peak_equity if peak_equity > 0 else 0
 
-            if dd < -0.30 and not circuit_breaker_triggered:
+            # Circuit breaker eşiği config'den okunuyor (varsayılan -%30)
+            circuit_breaker_threshold = -getattr(config, 'MAX_DRAWDOWN_LIMIT', 0.30)
+            
+            if dd < circuit_breaker_threshold and not circuit_breaker_triggered:
                 print(f"!!! CIRCUIT BREAKER TETİKLENDİ ({current_date.date()}) !!! Drawdown: {dd:.2%}. İşlemler durduruluyor.")
                 if holdings_qty > 0:
                     trades[i] = 1
                     exit_reasons[i] = 'CIRCUIT_BREAKER'
-                    sell_price = current_open
+                    
+                    # SOR: Circuit Breaker -> HIGH Urgency
+                    order = router.generate_order(
+                        symbol="BACKTEST", side="SELL", price=current_open, 
+                        quantity=holdings_qty, urgency=Urgency.HIGH
+                    )
+                    sell_price = order['price']
+                    order_types[i] = order['type'].value
+                    execution_notes[i] = order['note']
+                    
                     cash += holdings_qty * sell_price * (1 - self.commission)
                     holdings_qty = 0
                     holdings_value = 0
@@ -198,19 +246,45 @@ class BacktestEngineMixin:
                 equities[i] = cash
                 continue
 
-            # Risk Parameters Update
-            risk_manager.adjust_for_regime(current_regime)
-
-            if np.isnan(current_atr):
-                current_atr = current_close * 0.03
+            # Risk & Regime Logic
+            current_slice = df.iloc[[i]].copy()
+            market_data = self._get_market_indicators(current_slice)
+            current_regime = regime_detector.detect_regime(market_data)
+            regimes[i] = current_regime
+            
+            if hasattr(risk_manager, 'adjust_for_regime'):
+                 risk_manager.adjust_for_regime(current_regime)
 
             # --- DECISION LOGIC ---
             action = 'HOLD'
             target_qty = holdings_qty
             exit_reason = None
+            urgency = Urgency.NORMAL # Default
+
+            regime_action = regime_detector.get_trading_action(current_regime)
+            should_trade = regime_action.get('trade', True)
+            pos_mult = regime_action.get('position_multiplier', 1.0)
+            force_exit = regime_action.get('force_exit', False)
+
+            if force_exit:
+                if in_position:
+                    action = 'SELL'
+                    exit_reason = f'CRISIS_{current_regime}'
+                    urgency = Urgency.HIGH # Crisis = Panic Sell
+                target_qty = 0
+                
+            elif not should_trade:
+                if in_position:
+                    action = 'SELL'
+                    exit_reason = f'REGIME_{current_regime}'
+                    urgency = Urgency.NORMAL # Volatility avoidance, not panic
+                target_qty = 0
+                
+            else:
+                 pass # Check Risk Manager
 
             # 1. RISK MANAGER CHECKS
-            if in_position:
+            if in_position and action == 'HOLD':
                 days_held = (current_date - entry_date).days
                 if current_high > peak_price:
                     peak_price = current_high
@@ -220,12 +294,16 @@ class BacktestEngineMixin:
                 if check_res == 'SELL':
                     action = 'SELL'
                     exit_reason = reason
+                    # Stop Loss -> HIGH, Take Profit -> NORMAL/LOW
+                    if 'STOP' in reason: urgency = Urgency.HIGH
+                    elif 'PROFIT' in reason: urgency = Urgency.NORMAL
+
 
             # 2. SIGNAL / WEIGHT CHECK
             if action == 'HOLD':
                 if is_weighted:
                     base_weight = input_val
-
+                    # ... Sizing Logic ...
                     if getattr(config, 'ENABLE_RISK_SIZING', False):
                         stop_dist = risk_manager.get_stop_distance(current_close, current_atr)
                         risk_weight = config.RISK_PER_TRADE / (stop_dist + 1e-6)
@@ -236,11 +314,10 @@ class BacktestEngineMixin:
                         target_weight = min(kelly_weight, config.MAX_SINGLE_POS_WEIGHT)
                     else:
                         target_weight = base_weight
-
-                    if target_weight < 0:
-                        target_weight = 0
-                    if target_weight > 1:
-                        target_weight = 1
+                    
+                    target_weight *= pos_mult
+                    if target_weight < 0: target_weight = 0
+                    if target_weight > 1: target_weight = 1
 
                     target_value = equity * target_weight
                     target_qty_calc = target_value / current_close
@@ -251,17 +328,20 @@ class BacktestEngineMixin:
                     else:
                         qty_diff_pct = 1.0 if target_qty_calc > 0 else 0
 
-                    if qty_diff_pct > 0.10:
+                    if qty_diff_pct > 0.10: # Threshold
                         if target_qty_calc > holdings_qty:
                             action = 'BUY'
                             target_qty = target_qty_calc
+                            # New Entry or Big Add -> NORMAL
+                            urgency = Urgency.NORMAL
                         elif target_qty_calc < holdings_qty:
                             min_holding = getattr(config, 'MIN_HOLDING_DAYS', 0)
                             if days_held >= min_holding:
                                 action = 'SELL' if target_qty_calc < (holdings_qty * 0.1) else 'REBALANCE_SELL'
                                 target_qty = target_qty_calc
-                                if action == 'SELL':
-                                    exit_reason = 'WEIGHT_ZERO'
+                                if action == 'SELL': exit_reason = 'WEIGHT_ZERO'
+                                # Rebalancing is usually passive
+                                urgency = Urgency.LOW
                             else:
                                 action = 'HOLD'
 
@@ -270,11 +350,13 @@ class BacktestEngineMixin:
                     if input_val == 1 and not in_position:
                         action = 'BUY'
                         target_qty = (cash * 0.99) / current_close
+                        urgency = Urgency.NORMAL
                     elif input_val == 0 and in_position:
                         if days_held >= risk_manager.min_holding_periods:
                             action = 'SELL'
                             exit_reason = 'SIGNAL_LOST'
                             target_qty = 0
+                            urgency = Urgency.NORMAL 
 
             # --- EXECUTION ---
             current_volume = volumes[i]
@@ -284,9 +366,16 @@ class BacktestEngineMixin:
                 diff_qty = target_qty - holdings_qty
 
                 if diff_qty > 0:  # BUY
+                    # SOR Generation
+                    order = router.generate_order("BACKTEST", "BUY", current_close, abs(diff_qty), urgency)
+                    executed_price = order['price']
+                    order_types[i] = order['type'].value
+                    execution_notes[i] = order['note']
+                    
+                    # Original Slippage (Liquidity Impact only)
                     slippage = self.calculate_slippage(current_volume, current_avg_vol, diff_qty)
-                    executed_price = self.apply_market_impact(current_close, diff_qty, current_avg_vol, is_buy=True)
-
+                    # Use SOR Price + Liquidity Slippage
+                    
                     cost = diff_qty * executed_price * (1 + slippage)
                     total_cost = cost * (1 + self.commission)
 
@@ -302,11 +391,17 @@ class BacktestEngineMixin:
                             entry_date = current_date
                             peak_price = current_close
 
-                elif diff_qty < 0:  # SELL
+                elif diff_qty < 0:  # SELL (Rebalance)
                     sell_qty = abs(diff_qty)
-                    slippage = self.calculate_slippage(current_volume, current_avg_vol, sell_qty)
-                    executed_price = self.apply_market_impact(current_close, sell_qty, current_avg_vol, is_buy=False)
+                    
+                    # SOR Generation
+                    order = router.generate_order("BACKTEST", "SELL", current_close, sell_qty, urgency)
+                    executed_price = order['price']
+                    order_types[i] = order['type'].value
+                    execution_notes[i] = order['note']
 
+                    slippage = self.calculate_slippage(current_volume, current_avg_vol, sell_qty)
+                    
                     proceeds = sell_qty * executed_price * (1 - slippage)
                     net_proceeds = proceeds * (1 - self.commission)
 
@@ -320,8 +415,13 @@ class BacktestEngineMixin:
 
             elif action == 'SELL':  # Full Sell
                 if holdings_qty > 0:
+                    # SOR Generation
+                    order = router.generate_order("BACKTEST", "SELL", current_close, holdings_qty, urgency)
+                    executed_price = order['price']
+                    order_types[i] = order['type'].value
+                    execution_notes[i] = order['note']
+                    
                     slippage = self.calculate_slippage(current_volume, current_avg_vol, holdings_qty)
-                    executed_price = self.apply_market_impact(current_close, holdings_qty, current_avg_vol, is_buy=False)
 
                     proceeds = holdings_qty * executed_price * (1 - slippage)
                     net_proceeds = proceeds * (1 - self.commission)
@@ -349,10 +449,13 @@ class BacktestEngineMixin:
             current_weights[i] = (holdings_qty * current_close) / equity if equity > 0 else 0
 
         # Sonuçları DataFrame'e yaz
+        df['Regime'] = regimes
         df['Position'] = positions
         df['Actual_Weight'] = current_weights
         df['Trades'] = trades
         df['ExitReason'] = exit_reasons
+        df['OrderType'] = order_types # NEW
+        df['ExecutionNote'] = execution_notes # NEW
         df['Equity'] = equities
 
         df['Strategy_Return_Gross'] = df['Actual_Weight'].shift(1).fillna(0) * df['Log_Return']

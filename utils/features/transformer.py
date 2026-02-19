@@ -54,11 +54,11 @@ def prepare_tft_dataset(df, lookback=60, target_col='Excess_Return'):
         static_features.append('Sector')
 
     time_varying_known = ['DayOfWeek', 'Month']
-    for col in ['usdtry', 'USDTRY', 'vix', 'VIX', 'usdtry_shock', 'vix_high']:
-        if col in df.columns:
-            time_varying_known.append(col)
-
-    potential_unknowns = ['Close', 'Volume', 'RSI', 'MACD', 'price_vs_sma20', 'volume_surge', 'Log_Return', 'Volatility_20']
+    # FIX: Macro vars are unknown in future (unless we have perfect forecast). 
+    # Moving them to unknown prevents leakage.
+    
+    potential_unknowns = ['Close', 'Volume', 'RSI', 'MACD', 'price_vs_sma20', 'volume_surge', 'Log_Return', 'Volatility_20', 
+                          'usdtry', 'USDTRY', 'vix', 'VIX', 'usdtry_shock', 'vix_high']
     time_varying_unknown = [c for c in potential_unknowns if c in df.columns]
 
     target = target_col

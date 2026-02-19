@@ -1,138 +1,412 @@
-# BIST30 AI Trader - Gelişmiş Algoritmik Ticaret Platformu
+# 🤖 BIST30 AI Trader
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![GPU Support](https://img.shields.io/badge/ROCm-Supported-red.svg)](https://rocm.docs.amd.com/)
-[![Build Status](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
+> AI-powered algorithmic trading system for BIST30 (Borsa Istanbul 30) stocks using advanced machine learning models and quantitative strategies.
 
-**BIST30 AI Trader**, Borsa İstanbul (BIST30) pay piyasası için geliştirilmiş, **Hibrit Yapay Zeka (Ensemble Learning)** modellerini kullanan, modern ve modüler bir algoritmik ticaret sistemidir.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-Proje, **LightGBM** (Ranking/Sınıflandırma) ve **TFT - Temporal Fusion Transformer** (Zaman Serisi/Trend) modellerini birleştirerek hisse senetlerini puanlar ve dinamik risk yönetimi kuralları ile portföy yönetir.
+## 📋 Table of Contents
 
----
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 🚀 Öne Çıkan Özellikler
+## 🎯 Overview
 
-### 🧠 Hibrit AI Mimarisi
-- **LightGBM:** Hızlı, ağaç tabanlı model ile hisseler arası sıralama (Learning to Rank) yapar.
-- **TFT (Temporal Fusion Transformer):** Derin öğrenme (Deep Learning) ile zaman serisi trendlerini ve mevsimselliği yakalar.
-- **Ensemble:** İki modelin çıktılarını dinamik ağırlıklarla birleştirerek (Hybrid Ensemble) karar mekanizmasını güçlendirir.
+BIST30 AI Trader is a sophisticated algorithmic trading system designed for the Turkish stock market (BIST30). It combines multiple machine learning models (LightGBM, CatBoost, TFT) with advanced portfolio management, risk controls, and backtesting capabilities.
 
-### 🛡️ Gelişmiş Risk Yönetimi
-- **Dinamik Stop-Loss / Take-Profit:** ATR (Average True Range) tabanlı, piyasa volatilitesine göre genişleyen/daralan stop seviyeleri.
-- **Rejim Analizi:** Piyasanın Ralli/Yatay/Çöküş (Crash) durumunu tespit eder ve risk parametrelerini (Cash pozisyonu, Stop mesafesi) buna göre ayarlar.
-- **Kelly Criterion:** Pozisyon büyüklüğünü matematiksel olasılık formülü (Half-Kelly) ile optimize eder.
+### Key Capabilities
 
-### ⚡ Modern Altyapı
-- **Merkezi Konfigürasyon:** `settings.yaml` ve `config.py` ile tüm parametrelerin tek noktadan yönetimi ve Environment Variable desteği.
-- **Logging:** Python `logging` altyapısı ile yapılandırılmış, dosyaya ve konsola aktarılan detaylı sistem logları.
-- **Veri Doğrulama:** `Pydantic` ile canlı veri akışında şema kontrolü ve hata yakalama.
-- **GPU Hızlandırma:** AMD ROCm desteği ile TFT modelinin GPU üzerinde hızlı eğitimi.
+- **Multi-Model Ensemble**: LightGBM, CatBoost, and Temporal Fusion Transformer (TFT) models
+- **Ranking-Based Selection**: Daily stock ranking and portfolio optimization
+- **Advanced Risk Management**: Position sizing, stop-loss, and portfolio constraints
+- **Macro Regime Detection**: Market regime-aware trading decisions
+- **Walk-Forward Validation**: Robust out-of-sample testing
+- **Real-Time Trading**: Paper trading and live execution support
+- **Comprehensive Backtesting**: Historical performance analysis with detailed metrics
 
----
+## ✨ Features
 
-## 📊 Performans Karnesi (Phase 7 - Son 6 Ay)
+### Machine Learning Models
 
-Projenin **Hybrid Ensemble** modeli ile yapılan son kalite değerlendirmesi (Backtest: 2025-2026):
+- **LightGBM Ranker**: Fast gradient boosting for daily stock ranking
+- **CatBoost Ranker**: Categorical feature handling with ranking objectives
+- **TFT (Temporal Fusion Transformer)**: Deep learning for time series forecasting
+- **Ensemble Methods**: Model combination and weighted predictions
 
-| Metrik | Değer | Açıklama |
-| :--- | :--- | :--- |
-| **Rank IC** | `0.0484` | Model puanları ile gerçek getiriler arasındaki korelasyon (Başarılı). |
-| **Yıllık Getiri** | `%58.97` | Sistemin yıllıklandırılmış getiri potansiyeli. |
-| **Kümülatif Getiri** | `%31.36` | Son 6 ayda elde edilen toplam getiri simülasyonu. |
-| **Sharpe Ratio** | `0.61` | Riske göre düzeltilmiş getiri performansı. |
-| **Max Drawdown** | `-%21.54` | Görülen en büyük sermaye erimesi (Risk uyarısı içerir). |
+### Trading System
 
-> **Not:** Sonuçlar geçmiş verilerle yapılan simülasyonlara dayanır. Gelecek performans garantisi vermez.
+- **Portfolio Management**: Dynamic position sizing and rebalancing
+- **Risk Controls**: Max drawdown limits, position limits, sector diversification
+- **Slippage Modeling**: Realistic market impact and execution costs
+- **Macro Gate**: Market regime filtering for trade execution
+- **Kelly Criterion**: Optimal position sizing based on win rate and odds
 
----
+### Analysis & Monitoring
 
-## 📁 Proje Yapısı
+- **Feature Importance Analysis**: SHAP values and model interpretability
+- **Performance Metrics**: Sharpe ratio, max drawdown, win rate, NDCG@5
+- **Visualization**: Interactive charts and performance reports
+- **MLflow Integration**: Experiment tracking and model versioning
+
+### Infrastructure
+
+- **TimescaleDB**: Time-series data storage and efficient querying
+- **FastAPI**: RESTful API and WebSocket support
+- **Docker**: Containerized deployment
+- **Pytest**: Comprehensive test suite with property-based testing
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     BIST30 AI Trader                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │   Data       │  │   Feature    │  │   Models     │    │
+│  │   Loader     │─▶│  Engineering │─▶│  (ML/DL)     │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘    │
+│         │                                     │            │
+│         ▼                                     ▼            │
+│  ┌──────────────┐                    ┌──────────────┐    │
+│  │ TimescaleDB  │                    │   Ranking    │    │
+│  │  (Market     │                    │   Engine     │    │
+│  │   Data)      │                    └──────────────┘    │
+│  └──────────────┘                            │            │
+│                                               ▼            │
+│                                      ┌──────────────┐    │
+│                                      │  Portfolio   │    │
+│                                      │  Manager     │    │
+│                                      └──────────────┘    │
+│                                               │            │
+│         ┌─────────────────────────────────────┘            │
+│         ▼                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
+│  │  Backtest    │  │ Paper Trade  │  │ Live Trade   │    │
+│  │  Engine      │  │  Engine      │  │  Engine      │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘    │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 🚀 Installation
+
+### Prerequisites
+
+- Python 3.12+
+- PostgreSQL with TimescaleDB extension
+- (Optional) AMD GPU with ROCm for TFT training
+- (Optional) Docker and Docker Compose
+
+### Local Installation
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/bist30_ai_trader.git
+cd bist30_ai_trader
+```
+
+2. **Create virtual environment**
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+4. **Set up environment variables**
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+5. **Initialize database**
+```bash
+# Start TimescaleDB (via Docker)
+docker-compose up -d timescaledb
+
+# Run migrations
+python scripts/migration/migrate_to_db.py
+```
+
+### Docker Installation
+
+```bash
+# Build and start all services
+docker-compose up -d
+
+# Check logs
+docker-compose logs -f
+```
+
+## ⚡ Quick Start
+
+### 1. Train Models
+
+```bash
+# Train LightGBM ranker
+python scripts/training/train_models.py
+
+# Train CatBoost ranker
+python scripts/training/train_catboost.py
+
+# Train TFT model (requires GPU)
+python scripts/training/train_tft.py
+```
+
+### 2. Run Backtest
+
+```bash
+# Run comprehensive backtest
+python scripts/analysis/run_backtest.py
+
+# Walk-forward validation
+python scripts/training/walk_forward_validation.py
+```
+
+### 3. Analyze Results
+
+```bash
+# Generate performance report
+python scripts/analysis/get_training_metrics.py
+
+# Feature importance analysis
+python scripts/analysis/run_feature_importance.py --config configs/banking.py
+```
+
+### 4. Paper Trading
+
+```bash
+# Start paper trading
+python scripts/ops/paper_trading_runner.py
+```
+
+## 📁 Project Structure
 
 ```
 bist30_ai_trader/
-├── api/                      # FastAPI tabanlı sunucu ve endpointler
-├── core/                     # Çekirdek iş mantığı
-│   ├── backtest/             # Modüler backtest motoru
-│   ├── risk_manager.py       # Risk yönetimi sınıfı
-│   └── live_data_engine.py   # Canlı veri akışı ve doğrulama
-├── models/                   # AI Modelleri (LightGBM, TFT, Ensemble)
-├── paper_trading/            # Sanal işlem (Paper Trading) sistemi
-├── scripts/                  # Çalıştırılabilir scriptler (Eğitim, Test, Analiz)
-├── tests/                    # Birim testler (Unit Tests)
-├── utils/                    # Yardımcı araçlar ve Feature Engineering
-│   └── features/             # Teknik, Volatilite ve Makro özellik kütüphaneleri
-├── config.py                 # Konfigürasyon yükleyici
-└── settings.yaml             # Parametre dosyası
+├── api/                    # FastAPI server and WebSocket
+├── core/                   # Core trading logic
+│   ├── backtest/          # Backtesting engine
+│   ├── execution.py       # Order execution
+│   ├── feature_store.py   # Feature management
+│   ├── macro_gate.py      # Regime detection
+│   ├── position_sizing.py # Kelly criterion
+│   └── risk_manager.py    # Risk controls
+├── models/                 # ML model implementations
+├── utils/                  # Utility functions
+│   ├── data_loader.py     # Data loading
+│   ├── db_manager.py      # Database connection
+│   └── feature_engineering.py
+├── scripts/                # Executable scripts
+│   ├── analysis/          # Analysis tools
+│   ├── training/          # Model training
+│   ├── validation/        # System validation
+│   ├── maintenance/       # Code maintenance
+│   └── ops/               # Operations
+├── configs/                # Sector-specific configs
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+└── reports/                # Generated reports
 ```
+
+For detailed structure, see [project_structure_report.md](project_structure_report.md).
+
+## 📖 Usage
+
+### Training Models
+
+```python
+from utils.data_loader import DataLoader
+from models.ranking_model import RankingModel
+
+# Load data
+loader = DataLoader(start_date="2020-01-01")
+data = loader.fetch_stock_data("THYAO")
+
+# Train model
+model = RankingModel()
+model.train(data)
+model.save("models/saved/ranker.pkl")
+```
+
+### Running Backtest
+
+```python
+from core.backtest.engine import BacktestEngine
+
+# Initialize engine
+engine = BacktestEngine(
+    initial_capital=100000,
+    commission=0.001,
+    slippage_model="adaptive"
+)
+
+# Run backtest
+results = engine.run(
+    start_date="2023-01-01",
+    end_date="2023-12-31"
+)
+
+print(f"Total Return: {results['total_return']:.2%}")
+print(f"Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+```
+
+### Feature Importance Analysis
+
+```bash
+# Analyze feature importance for a specific config
+python scripts/analysis/run_feature_importance.py \
+    --config configs/banking.py \
+    --output reports/feature_importance/
+
+# Generate visualizations
+python scripts/analysis/run_feature_importance.py \
+    --config configs/banking.py \
+    --visualize \
+    --top-n 20
+```
+
+## ⚙️ Configuration
+
+### Main Configuration (`config.py`)
+
+```python
+# Trading parameters
+TIMEFRAME = "1d"
+TRAIN_START_DATE = "2020-01-01"
+TRAIN_END_DATE = "2023-12-31"
+
+# Portfolio settings
+INITIAL_CAPITAL = 100000
+MAX_POSITIONS = 5
+POSITION_SIZE_METHOD = "kelly"
+
+# Risk management
+MAX_POSITION_SIZE = 0.25
+STOP_LOSS_PCT = 0.10
+MAX_DRAWDOWN_LIMIT = 0.20
+```
+
+### Sector Configurations (`configs/`)
+
+Sector-specific configurations for different stock groups:
+- `banking.py` - Banking sector
+- `holding.py` - Holding companies
+- `industrial.py` - Industrial stocks
+- `energy.py` - Energy sector
+- And more...
+
+### Environment Variables (`.env`)
+
+```bash
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=bist30_trader
+DB_USER=postgres
+DB_PASSWORD=your_password
+
+# MLflow
+MLFLOW_TRACKING_URI=http://localhost:5000
+
+# API
+API_HOST=0.0.0.0
+API_PORT=8000
+```
+
+## 📚 Documentation
+
+- [Feature Importance Analysis](docs/feature_importance_analysis.md)
+- [Cleanup System Guide](docs/cleanup_config_guide.md)
+- [API Documentation](docs/api.md)
+- [Model Training Guide](docs/training.md)
+- [Backtest Guide](docs/backtest.md)
+- [Architecture Overview](docs/architecture.md)
+- [Deployment Guide](docs/deployment.md)
+
+### Maintenance Tools
+
+The project includes comprehensive maintenance tools:
+
+```bash
+# Find unused files
+python scripts/maintenance/find_unused_files.py
+
+# Detect duplicate code
+python scripts/maintenance/find_duplicate_code.py
+
+# Generate cleanup report
+python scripts/maintenance/generate_cleanup_report.py
+```
+
+See [Maintenance README](scripts/maintenance/README.md) for details.
+
+## 🧪 Testing
+
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=. --cov-report=html
+
+# Run specific test file
+pytest tests/test_ranking_model.py
+
+# Run property-based tests
+pytest tests/ -k "property"
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development Setup
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests (`pytest`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Code Standards
+
+- Follow PEP 8 style guide
+- Add docstrings to all functions and classes
+- Write tests for new features
+- Update documentation as needed
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- BIST (Borsa Istanbul) for market data
+- Open-source ML libraries: LightGBM, CatBoost, PyTorch
+- TimescaleDB for time-series data management
+- FastAPI for modern API development
+
+## 📞 Contact
+
+For questions or support, please open an issue on GitHub.
 
 ---
 
-## 🛠️ Kurulum (Linux / Ubuntu)
-
-**Ön Gereksinimler:** Python 3.10+, pip, (Opsiyonel) AMD GPU için ROCm sürücüleri.
-
-1.  **Depoyu Klonlayın:**
-    ```bash
-    git clone https://github.com/alptigingorkem-coder/bist30_ai_trader.git
-    cd bist30_ai_trader
-    ```
-
-2.  **Sanal Ortam Oluşturun:**
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Bağımlılıkları Yükleyin:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-    *(Not: ROCm için PyTorch sürümünü sisteminize uygun olarak ayrıca kurmanız gerekebilir.)*
-
-4.  **Konfigürasyonu Kontrol Edin:**
-    `settings.yaml` dosyasını inceleyin ve risk parametrelerini isteğinize göre düzenleyin.
-
----
-
-## 📖 Kullanım Kılavuzu
-
-### 1. Modelleri Eğitmek
-Sistemi sıfırdan kuruyorsanız veya modelleri güncellemek istiyorsanız:
-```bash
-# LightGBM ve TFT modellerini eğitir
-./run_training.sh
-```
-
-### 2. Kalite ve Performans Analizi
-Mevcut modellerin durumunu görmek için:
-```bash
-python scripts/project_evaluation.py
-```
-
-### 3. Paper Trading (Sanal İşlem)
-Canlı veri ile sistemi izlemek ve işlem simülasyonu yapmak için:
-```bash
-# Canlı veri akışını ve simülasyonu başlatır
-python scripts/paper_trading_runner.py
-```
-
-### 4. Backtest (Tarihsel Test)
-Geçmiş veriler üzerinde stratejiyi test etmek için:
-```bash
-python scripts/run_backtest.py
-```
-
----
-
-## ⚠️ YASAL UYARI VE SORUMLULUK REDDİ
-
-**BU YAZILIM YATIRIM TAVSİYESİ DEĞİLDİR.**
-
-1.  **Sorumluluk Reddi:** Bu yazılım eğitim ve araştırma amaçlı geliştirilmiştir. Yazılımın ürettiği sinyaller, finansal kayıplara yol açabilir. Geliştiriciler, kullanımdan doğabilecek **HİÇBİR MADDİ VEYA MANEVİ ZARARDAN SORUMLU TUTULAMAZ.**
-2.  **Kendi Araştırmanızı Yapın (DYOR):** Borsa işlemleri yüksek risk içerir. Bu yazılımı bir karar destek sistemi olarak kullanın, tam yetkiyle (otonom) işlem yaptırmadan önce riskleri iyice değerlendirin.
-
----
-
-**Lisans:** [AGPL-3.0](LICENSE)
-**Geliştirici:** Alptigin Görkem
+**Disclaimer**: This software is for educational and research purposes only. Trading stocks involves risk. Past performance does not guarantee future results. Always do your own research and consult with financial advisors before making investment decisions.

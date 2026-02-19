@@ -1,6 +1,14 @@
 import config
 import pandas as pd
 import numpy as np
+import logging
+from models.regime_detector import RegimeDetector
+
+logger = logging.getLogger(__name__)
+
+class ConfigWrapper:
+    def __init__(self, module): self.module = module
+    def get(self, name, default=None): return getattr(self.module, name, default)
 
 class RiskManager:
     def __init__(self):
@@ -10,7 +18,15 @@ class RiskManager:
         self.min_holding_periods = config.MIN_HOLDING_PERIODS
         self.max_stop_loss_pct = config.MAX_STOP_LOSS_PCT
         self.trailing_active = config.TRAILING_STOP_ACTIVE
-        self.current_regime = None # Initialize current_regime
+        self.current_regime = None 
+        
+        # Initialize RegimeDetector
+        try:
+            self.regime_detector = RegimeDetector(ConfigWrapper(config))
+            logger.info("✅ RegimeDetector entegre edildi (RiskManager)")
+        except Exception as e:
+            logger.warning(f"⚠️ RegimeDetector başlatılamadı: {e}")
+            self.regime_detector = None
 
     def adjust_for_regime(self, regime):
         """
@@ -35,10 +51,46 @@ class RiskManager:
             self.take_profit_mult = config.ATR_TAKE_PROFIT_MULTIPLIER
         
         else:
-            # Bilinmeyen rejim fallback (Trend_Up Say)
              self.stop_loss_mult = config.ATR_STOP_LOSS_MULTIPLIER
              self.trailing_stop_mult = config.ATR_TRAILING_STOP_MULTIPLIER
              self.take_profit_mult = config.ATR_TAKE_PROFIT_MULTIPLIER
+
+    def calculate_stop_loss(self, entry_price, atr, regime="NORMAL"):
+        """
+        Rejime göre dinamik stop-loss.
+        
+        Args:
+            entry_price: Giriş fiyatı
+            atr: Average True Range
+            regime: Piyasa rejimi ('CRISIS', 'VOLATILE', 'TREND_UP', vb.)
+        
+        Returns:
+            float: Stop-loss seviyesi
+        """
+        base_mult = getattr(config, 'ATR_STOP_LOSS_MULTIPLIER', 1.5)
+        
+        # Rejim çarpanı
+        # Rejim çarpanı (RegimeDetector üzerinden)
+        regime_mult = 1.0
+        if self.regime_detector and regime:
+            regime_mult = self.regime_detector.get_stop_loss_multiplier(regime)
+        else:
+            # Fallback to config lookup manually if detector fails or not init
+            regime_actions = getattr(config, 'REGIME_ACTIONS', {})
+            action = regime_actions.get(regime, {})
+            regime_mult = action.get('stop_loss_mult', 1.5)
+        
+        # Final çarpan
+        final_mult = base_mult * regime_mult
+        
+        # Stop hesapla
+        stop = entry_price - (final_mult * atr)
+        
+        logger.debug(f"Stop-loss: Entry={entry_price:.2f}, ATR={atr:.4f}, "
+                    f"Regime={regime}, Mult={final_mult:.2f}, Stop={stop:.2f}")
+        
+        return stop
+
 
     def get_stop_distance(self, price, atr):
         """
@@ -58,7 +110,7 @@ class RiskManager:
         Döner: 'SELL' veya 'HOLD'
         """
         # 1. Analiz
-        current_atr = atr if not np.isnan(atr) else entry_price * 0.05
+        current_atr = atr if not np.isnan(atr) else entry_price * 0.03
         
         # Başlangıç Stopu (Entry day)
         initial_stop_dist = current_atr * self.stop_loss_mult
@@ -67,12 +119,21 @@ class RiskManager:
         # Hard Stop (Yüzdesel Sigorta)
         hard_stop_price = entry_price * (1 - self.max_stop_loss_pct)
         
+        
         # 2. Stop Loss Kontrolü
         # Eğer fiyat en baştan belirlenen stopun altına indiyse ÇIK
         effective_initial_stop = max(initial_stop_price, hard_stop_price)
         
         if current_price < effective_initial_stop:
             return 'SELL', 'STOP_LOSS'
+
+        # YENİ: Regime Force Exit (RegimeDetector üzerinden)
+        # Not: check_exit_conditions metodunun parametrelerine 'regime' eklenmeliydi ama
+        # mevcut imzayı bozmamak için self.current_regime kullanıyoruz.
+        if self.regime_detector and self.current_regime:
+            action = self.regime_detector.get_trading_action(self.current_regime)
+            if action.get('force_exit', False):
+                return 'SELL', f"FORCE_EXIT_{self.current_regime}"
 
         # 3. Trailing Stop (Sıkılaştırılmış)
         if self.trailing_active:
@@ -95,16 +156,22 @@ class RiskManager:
             
         return 'HOLD', None
 
-    def calculate_position_size(self, capital, price, atr, win_rate=0.55, win_loss_ratio=2.0):
+    def calculate_position_size(self, capital, price, atr, win_rate=None, win_loss_ratio=None):
         """
         Kelly Criterion (Half-Kelly) ile pozisyon büyüklüğü hesaplar.
         f = (p * b - q) / b
-        p: Win Rate
-        b: Win/Loss Ratio
+        p: Win Rate (Dinamik veya Varsayılan)
+        b: Win/Loss Ratio (Dinamik veya Varsayılan)
         q: Loss Rate (1-p)
         """
         if atr <= 0 or price <= 0: return 0.0
         
+        # Varsayılanlar (Eğer dinamik veri yoksa)
+        if win_rate is None:
+            win_rate = 0.55 # Muhafazakar başlangıç
+        if win_loss_ratio is None:
+            win_loss_ratio = 2.0 # Hedeflenen
+            
         # 1. Kelly Oranı Hesapla
         p = win_rate
         b = win_loss_ratio
@@ -155,3 +222,84 @@ class RiskManager:
             return final_lots
             
         return 0
+
+    def check_portfolio_drawdown(self, current_equity, peak_equity):
+        """
+        Portföy bazlı Drawdown kontrolü (Circuit Breaker).
+        
+        Returns:
+            action (str): 'CONTINUE', 'REDUCE_EXPOSURE', 'STOP_TRADING'
+            drawdown (float): Calculated drawdown
+        """
+        if peak_equity <= 0: return 'CONTINUE', 0.0
+        
+        drawdown = (current_equity - peak_equity) / peak_equity
+        limit = config.MAX_DRAWDOWN_LIMIT # Örn: -0.20
+        
+        # Drawdown negatif bir değerdir, limit pozitif tanımlanmış olabilir config'de (0.25)
+        # Config'deki 0.25 aslında %25 kayıp demek.
+        # Bu yüzden karşılaştırmayı mutlak değer veya işaretle dikkatli yapmalıyız.
+        # Config'de 0.20 -> %20 kayıp.
+        # Drawdown -0.21 -> Limit aşıldı.
+        
+        limit_val = -abs(limit) # -0.20
+        
+        if drawdown < limit_val:
+            return 'STOP_TRADING', drawdown
+            
+        # Warning Zone: Limitin yarısına gelindiğinde (-0.10)
+        warning_val = limit_val / 2
+        if drawdown < warning_val:
+            return 'REDUCE_EXPOSURE', drawdown
+            
+        return 'CONTINUE', drawdown
+
+    def check_order_timeout(self, order_type, time_in_force_minutes=5):
+        """
+        Passive orders (LIMIT) timeout check.
+        In backtesting, this is a placeholder or used if we had minute-level data loop.
+        In Live Trading, this would cancel the order.
+        """
+        # Audit Requirement: 5 min timeout
+        if order_type == "LIMIT":
+            return True # Timeout active
+        return False
+
+    def check_liquidity(self, ticker: str, volume: float) -> bool:
+        """
+        Check if the stock has sufficient liquidity to be tradeable.
+        Uses config.MIN_LIQUIDITY_THRESHOLD (Default: 20M TL).
+        NOTE: 'volume' here assumes Volume * Price (TL Volume).
+        If passing Lot Volume, ensure to multiply by price before calling, 
+        OR better, call this with TL Volume.
+        """
+        threshold = getattr(config, 'MIN_LIQUIDITY_THRESHOLD', 20_000_000)
+        
+        if volume < threshold:
+            logger.debug(f"{ticker}: Low Liquidity ({volume:,.0f} < {threshold:,.0f}). Trade Rejected.")
+            return False
+        return True
+
+    def calculate_dynamic_slippage(self, target_size_qty: float, avg_volume_qty: float) -> float:
+        """
+        Calculate slippage based on volume participation.
+        Formula: Base + (Participation * Impact_Factor)
+        Base: 0.05% (5bps)
+        """
+        if avg_volume_qty <= 0: return 0.01 # High slippage penalty for no volume
+        
+        participation = target_size_qty / avg_volume_qty
+        
+        base_slippage = 0.0005 # 5 basis points
+        
+        # Impact Factor increases with size
+        # 1% participation -> ~0 impact
+        # 10% participation -> Significant impact
+        impact_factor = 0.1 # Sensitivity
+        
+        impact_cost = participation * impact_factor
+        
+        total_slippage = base_slippage + impact_cost
+        
+        # Max Cap to prevent unrealistic backtest crash
+        return min(total_slippage, 0.03) # Max 3% slippage

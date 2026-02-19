@@ -34,7 +34,7 @@ class FeatureStore:
         
         # Kaydet (Compression: Snappy default, fast)
         log.info(f"[FeatureStore] Saving fundamentals to {self.fundamentals_path}...")
-        df.to_parquet(self.fundamentals_path, engine='pyarrow', index=False)
+        df.to_parquet(self.fundamentals_path, index=False)
         log.info("[FeatureStore] Save complete.")
         
     def load_fundamentals(self, tickers=None, start_date=None, end_date=None) -> pd.DataFrame:
@@ -45,7 +45,7 @@ class FeatureStore:
             log.info("[FeatureStore] Fundamentals file not found.")
             return pd.DataFrame()
             
-        df = pd.read_parquet(self.fundamentals_path, engine='pyarrow')
+        df = pd.read_parquet(self.fundamentals_path)
         
         if tickers:
             df = df[df['Ticker'].isin(tickers)]

@@ -4,23 +4,59 @@ import numpy as np
 import lightgbm as lgb
 import os
 import joblib
+import json
 
 from utils.logging_config import get_logger
 
 log = get_logger(__name__)
 
 class RankingModel:
-    def __init__(self, data, config_module):
+    def __init__(self, data, config_module, blacklist_path=None):
         self.data = data.copy()
         self.config = config_module
         self.model = None
         self.feature_names = []
+        self.blacklist_path = blacklist_path  # Store the path for reloading
+        self.blacklist = self._load_blacklist(blacklist_path)
+    
+    def _get_sector_name(self):
+        """Helper to get sector name from config, with fallback."""
+        return getattr(self.config, 'SECTOR_NAME', 'General')
+
+    def _load_blacklist(self, path=None):
+        """
+        Load feature blacklist from JSON file.
+        
+        Args:
+            path: Path to blacklist JSON file. If None, uses default location.
+            
+        Returns:
+            List[str]: List of blacklisted feature names, or empty list if file doesn't exist.
+        """
+        if path is None:
+            path = "models/saved/feature_blacklist.json"
+        
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    blacklist = json.load(f)
+                sector_name = getattr(self.config, 'SECTOR_NAME', 'General')
+                log.info(f"[{sector_name}] Feature blacklist loaded: {len(blacklist)} features will be filtered")
+                return blacklist
+            except Exception as e:
+                sector_name = getattr(self.config, 'SECTOR_NAME', 'General')
+                log.warning(f"[{sector_name}] Failed to load blacklist from {path}: {e}")
+                return []
+        return []
 
     def prepare_data(self, is_training=True):
         """
         Ranking için veriyi hazırlar.
         Veri (Date, Ticker) indeksli olmalı.
         """
+        # Reload blacklist for dynamic updates
+        self.blacklist = self._load_blacklist(self.blacklist_path)
+        
         df = self.data.copy()
         
         # Feature Selection
@@ -41,6 +77,15 @@ class RankingModel:
         
         # Keep numeric only
         feature_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+        
+        # Apply blacklist filtering
+        if self.blacklist:
+            original_count = len(feature_cols)
+            feature_cols = [f for f in feature_cols if f not in self.blacklist]
+            filtered_count = original_count - len(feature_cols)
+            if filtered_count > 0:
+                log.info(f"[{self._get_sector_name()}] Blacklist applied: {filtered_count} features filtered, {len(feature_cols)} features remaining")
+        
         self.feature_names = feature_cols
         
         if is_training:
@@ -50,15 +95,15 @@ class RankingModel:
             target_cols = [f'Excess_Return_T{win}' for win in windows]
             
             # DEBUG: Check for NaNs before drop
-            log.info(f"[{self.config.SECTOR_NAME}] Data Shape Before Drop: {df.shape}")
-            log.info(f"[{self.config.SECTOR_NAME}] Target Cols: {target_cols}")
+            log.info(f"[{self._get_sector_name()}] Data Shape Before Drop: {df.shape}")
+            log.info(f"[{self._get_sector_name()}] Target Cols: {target_cols}")
             
             # Check for columns that are ALL NaN
             nan_counts = df[feature_cols + target_cols].isnull().sum()
             all_nan_cols = nan_counts[nan_counts == len(df)].index.tolist()
             if all_nan_cols:
-                log.error(f"[{self.config.SECTOR_NAME}] CRITICAL: The following columns are ALL NaN: {all_nan_cols}")
-                log.info(f"[{self.config.SECTOR_NAME}] Dropping these columns to save data rows.")
+                log.error(f"[{self._get_sector_name()}] CRITICAL: The following columns are ALL NaN: {all_nan_cols}")
+                log.info(f"[{self._get_sector_name()}] Dropping these columns to save data rows.")
                 df.drop(columns=all_nan_cols, inplace=True)
                 # Update cols lists
                 feature_cols = [c for c in feature_cols if c not in all_nan_cols]
@@ -70,15 +115,39 @@ class RankingModel:
             
             # Check rows with NaNs
             rows_with_nan = df[feature_cols + target_cols].isnull().any(axis=1).sum()
-            log.info(f"[{self.config.SECTOR_NAME}] Rows with NaN: {rows_with_nan} / {len(df)}")
+            log.info(f"[{self._get_sector_name()}] Rows with NaN: {rows_with_nan} / {len(df)}")
 
             df = df.dropna(subset=feature_cols + target_cols)
-            log.info(f"[{self.config.SECTOR_NAME}] Data Shape After Drop: {df.shape}")
+            log.info(f"[{self._get_sector_name()}] Data Shape After Drop: {df.shape}")
             
             # Sort by Date (Important for grouping)
             df = df.sort_index(level='Date') 
             
             X = df[feature_cols]
+            
+            # Feature Korelasyon Filtresi: >0.95 korelasyonlu çiftlerden birini çıkar
+            enable_corr_filter = getattr(self.config, 'ENABLE_CORRELATION_FILTER', True)
+            corr_threshold = getattr(self.config, 'CORRELATION_THRESHOLD', 0.95)
+            
+            if enable_corr_filter and len(feature_cols) > 10:
+                try:
+                    corr_matrix = X.corr().abs()
+                    upper_tri = corr_matrix.where(
+                        np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+                    )
+                    cols_to_drop = [col for col in upper_tri.columns 
+                                    if any(upper_tri[col] > corr_threshold)]
+                    
+                    if cols_to_drop:
+                        log.info(f"[{self._get_sector_name()}] Korelasyon filtresi: {len(cols_to_drop)} feature kaldırıldı "
+                                 f"(eşik={corr_threshold}): {cols_to_drop[:10]}")
+                        feature_cols = [c for c in feature_cols if c not in cols_to_drop]
+                        X = df[feature_cols]
+                        self.feature_names = feature_cols
+                    else:
+                        log.info(f"[{self._get_sector_name()}] Korelasyon filtresi: Kaldırılacak feature yok (eşik={corr_threshold})")
+                except Exception as e:
+                    log.warning(f"[{self._get_sector_name()}] Korelasyon filtresi hatası: {e}")
             
             # 1. Base Target Selection: Multi-Window Weighted Average
             if len(windows) > 1:
@@ -134,49 +203,55 @@ class RankingModel:
             return X, None, None
 
     def train(self, valid_df=None, custom_params=None):
-        log.info(f"[{self.config.SECTOR_NAME}] Ranking Model Eğitimi (LambdaRank)...")
+        log.info(f"[{self._get_sector_name()}] Ranking Model Eğitimi (LambdaRank)...")
         
         X_train, y_train, q_train = self.prepare_data(is_training=True)
         
         if X_train.empty or len(y_train) == 0:
-            raise ValueError(f"[{self.config.SECTOR_NAME}] Training data is empty! Check feature engineering or data range.")
+            raise ValueError(f"[{self._get_sector_name()}] Training data is empty! Check feature engineering or data range.")
         
         if valid_df is not None and not valid_df.empty:
              valid_model = RankingModel(valid_df, self.config)
              try:
                  X_val, y_val, q_val = valid_model.prepare_data(is_training=True)
                  if X_val.empty or len(y_val) == 0:
-                     log.info(f"[{self.config.SECTOR_NAME}] Validation set empty after processing. Skipping validation.")
+                     log.info(f"[{self._get_sector_name()}] Validation set empty after processing. Skipping validation.")
                      eval_set = None
                      eval_group = None
                  else:
                      eval_set = [(X_val, y_val)]
                      eval_group = [q_val]
              except Exception as e:
-                 log.error(f"[{self.config.SECTOR_NAME}] Validation prep error: {e}. Skipping validation.")
+                 log.error(f"[{self._get_sector_name()}] Validation prep error: {e}. Skipping validation.")
                  eval_set = None
                  eval_group = None
         else:
              eval_set = None
              eval_group = None
              
-        # LambdaRank Parameters
+        # LambdaRank Parameters — Config'deki optimize edilmiş değerleri kullan
+        import config as _cfg
+        optimized = getattr(_cfg, 'OPTIMIZED_MODEL_PARAMS', {})
+        
         default_params = {
             'objective': 'lambdarank',
             'metric': 'ndcg',
             'ndcg_eval_at': [1, 3, 5],
             'boosting_type': 'gbdt',
-            'learning_rate': 0.03,  # Reduced from 0.05
-            'num_leaves': 64,       # Increased from 31
-            'max_depth': -1,
-            'n_estimators': 1000,   # Increased from 500
+            'learning_rate': optimized.get('learning_rate', 0.01538),
+            'num_leaves': optimized.get('num_leaves', 77),
+            'max_depth': optimized.get('max_depth', 6),
+            'n_estimators': optimized.get('n_estimators', 1000),
             'importance_type': 'gain',
-            'reg_alpha': 0.1,    # L1 regularization
-            'reg_lambda': 0.1,   # L2 regularization
-            'min_child_samples': 20,
+            'reg_alpha': optimized.get('reg_alpha', 0.9187),
+            'reg_lambda': optimized.get('reg_lambda', 0.4115),
+            'min_child_samples': optimized.get('min_child_samples', 66),
             'random_state': 42,
             'verbosity': -1
         }
+        log.info(f"[{self._get_sector_name()}] LightGBM parametreleri: lr={default_params['learning_rate']}, "
+                 f"leaves={default_params['num_leaves']}, depth={default_params['max_depth']}, "
+                 f"reg_alpha={default_params['reg_alpha']:.4f}, reg_lambda={default_params['reg_lambda']:.4f}")
         
         # Override defaults with custom params if provided
         if custom_params:
@@ -193,20 +268,22 @@ class RankingModel:
                  max_label = max(max_label, y_eval_curr.max())
                  
         if max_label > 30:
-            log.error(f"[{self.config.SECTOR_NAME}] Large labels detected (max: {max_label}). Using linear label_gain to avoid error.")
+            log.error(f"[{self._get_sector_name()}] Large labels detected (max: {max_label}). Using linear label_gain to avoid error.")
             # Use linear gain (0, 1, 2, ...) to avoid overflow with exponential gain on large labels
             model.set_params(label_gain=list(range(int(max_label) + 1)))
             
+        # Callbacks logic
+        callbacks = [lgb.log_evaluation(50)]
+        if eval_set:
+            callbacks.append(lgb.early_stopping(stopping_rounds=50, first_metric_only=True))
+
         model.fit(
             X_train, y_train,
             group=q_train,
             eval_set=eval_set,
             eval_group=eval_group,
             eval_metric='ndcg',
-            callbacks=[
-                lgb.early_stopping(stopping_rounds=50, first_metric_only=True),
-                lgb.log_evaluation(50)
-            ]
+            callbacks=callbacks
         )
         
         # FEATURE SELECTION: SHAP Importance
@@ -227,12 +304,13 @@ class RankingModel:
                 
             low_imp_features = [self.feature_names[i] for i in range(len(shap_importance)) if shap_importance[i] < 0.005]
             if low_imp_features:
-                log.info(f"[{self.config.SECTOR_NAME}] Low Importance Features (SHAP < 0.01): {low_imp_features[:5]}... (Total: {len(low_imp_features)})")
+                log.info(f"[{self._get_sector_name()}] Low Importance Features (SHAP < 0.01): {low_imp_features[:5]}... (Total: {len(low_imp_features)})")
                 # Auto-drop for future iterations (stateful within session)
-                self.feature_names = [f for f in self.feature_names if f not in low_imp_features]
+                # FIX: Model feature mismatch! Model eğitildikten sonra feature listesini değiştirirsek,
+                # save() metodunda eksik liste kaydediliyor ama model tüm feature'ları bekliyor.
+                # self.feature_names = [f for f in self.feature_names if f not in low_imp_features]
         except Exception as e:
-            # print(f"SHAP Error: {e}")
-            pass
+            log.warning(f"[{self._get_sector_name()}] SHAP Feature Importance Failed: {e}")
 
         self.model = model
         return model

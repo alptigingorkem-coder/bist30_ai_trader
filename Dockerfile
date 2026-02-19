@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     curl \
     git \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -28,6 +29,9 @@ RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://
 # Copy requirements
 COPY requirements.txt .
 
+# Pre-install build dependencies (numpy is required for shap build)
+RUN pip install --no-cache-dir numpy==1.26.4 cython
+
 # Install other Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -40,6 +44,10 @@ ENV PYTHONUNBUFFERED=1
 
 # Application Code
 COPY . .
+
+# Security: Run as non-root user
+RUN useradd -m appuser
+USER appuser
 
 # Run Command (Default to Paper Trader in EOD mode)
 CMD ["python", "scripts/paper_trading_runner.py"]

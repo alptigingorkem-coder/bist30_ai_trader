@@ -18,12 +18,26 @@ from configs import banking as config_banking
 from utils.feature_engineering import FeatureEngineer
 from models.ranking_model import RankingModel
 from core.backtesting import Backtester
+from models.regime_detector import RegimeDetector
 
 from utils.logging_config import get_logger
 
-log = get_logger(__name__)
-
-# Cache directory
+class DynamicBacktest:
+    def __init__(self, config):
+        self.config = config
+        self.trading_dates = []
+        
+        # Initialize Regime Detector
+        if getattr(config, 'USE_ADAPTIVE_REGIME', True):
+            try:
+                self.regime_detector = RegimeDetector(config)
+                log.info("✅ RegimeDetector entegre edildi (DynamicBacktest)")
+            except Exception as e:
+                 log.warning(f"⚠️ RegimeDetector başlatılamadı: {e}")
+                 self.regime_detector = None
+        else:
+            self.regime_detector = None
+            log.warning("⚠️ RegimeDetector devre dışı")
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cache")
 
 def ensure_cache_dir():
@@ -151,7 +165,6 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
         macro_df = macro_df.ffill()
         
         # US piyasaları 1 gün lag
-        # US piyasaları 1 gün lag
         for col in ['VIX', 'SP500']:
             if col in macro_df.columns:
                 macro_df[col] = macro_df[col].shift(1)
@@ -191,7 +204,16 @@ def batch_download_data(tickers: list, start_date: str, end_date: str,
                 # FIX: Normalize dates to midnight to ensure matching despite different trading hours
                 # Convert to UTC first to handle mixed inputs, then strip timezone and normalize
                 stock_rest['Date'] = pd.to_datetime(stock_rest['Date'], utc=True).dt.tz_convert(None).dt.normalize()
+                stock_rest = stock_rest.drop_duplicates(subset=['Date'])
+                
                 macro_rest['Date'] = pd.to_datetime(macro_rest['Date'], utc=True).dt.tz_convert(None).dt.normalize()
+                macro_rest = macro_rest.drop_duplicates(subset=['Date'])
+                
+                # Çakışan kolonları kontrol et ve kaldır (Date hariç)
+                overlap_cols = [col for col in stock_rest.columns if col in macro_rest.columns and col != 'Date']
+                if overlap_cols:
+                    log.warning(f"  ⚠️ {ticker}: Çakışan kolonlar kaldırılıyor: {overlap_cols}")
+                    stock_rest = stock_rest.drop(columns=overlap_cols)
                 
                 # Merge
                 merged = pd.merge(stock_rest, macro_rest, on='Date', how='left')
@@ -350,6 +372,19 @@ def run_dynamic_backtest(
     df_train = full_train[train_mask]
     df_valid = full_train[valid_mask]
     
+    # Enforce numeric types for LGBM
+    # Enforce numeric types for LGBM
+    # Identify non-numeric columns
+    for col in df_train.columns:
+        if col in ['Ticker', 'Date']: continue
+        if df_train[col].dtype == 'object':
+             log.warning(f"Feature {col} is object type. Attempting conversion.")
+             df_train[col] = pd.to_numeric(df_train[col], errors='coerce')
+             df_valid[col] = pd.to_numeric(df_valid[col], errors='coerce')
+    
+    # Drop rows with NaNs if any created
+    # df_train.dropna(inplace=True) # Optional, LGBM handles NaNs
+    
     update_progress("LightGBM eğitiliyor...", 55)
     ranker = RankingModel(df_train, config_banking)
     custom_params = getattr(config, 'OPTIMIZED_MODEL_PARAMS', None)
@@ -360,12 +395,21 @@ def run_dynamic_backtest(
     
     full_test = pd.concat(all_test_data)
     
+    # FIX: Enforce numeric types for full_test
+    for col in full_test.columns:
+        if col in ['Ticker', 'Date']: continue
+        if full_test[col].dtype == 'object':
+             # log.warning(f"Test Set Feature {col} is object type. Attempting conversion.")
+             full_test[col] = pd.to_numeric(full_test[col], errors='coerce')
+    
     # Predict scores
     scores = ranker.predict(full_test)
     full_test['Score'] = scores
     
     # Pivot for ranking
     full_test_reset = full_test.reset_index()
+    # Ensure no duplicates for pivot
+    full_test_reset = full_test_reset.drop_duplicates(subset=['Date', 'Ticker'])
     scores_pivot = full_test_reset.pivot(index='Date', columns='Ticker', values='Score')
     
     # Rank
@@ -393,6 +437,7 @@ def run_dynamic_backtest(
             continue
         
         df = test_data_dict[ticker].copy()
+
         df.reset_index(inplace=True)
         df.set_index('Date', inplace=True)
         

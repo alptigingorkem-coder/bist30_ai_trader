@@ -1,14 +1,14 @@
 
-import asyncio
-import json
 import os
 import sys
 import sqlite3
 from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
+import numpy as np
 import yfinance as yf
 import pandas as pd
 import threading
@@ -21,9 +21,20 @@ import config
 from core.dynamic_backtest import run_dynamic_backtest, validate_dates
 from utils.logging_config import get_logger
 
+import asyncio
+import json
+
 log = get_logger(__name__)
 
-app = FastAPI(title="BIST30 AI Trader API", version="2.0")
+# --- Lifespan ---
+@asynccontextmanager
+async def lifespan(app):
+    # Startup
+    asyncio.create_task(broadcast_updates())
+    yield
+    # Shutdown (temizlik gerekirse buraya)
+
+app = FastAPI(title="BIST30 AI Trader API", version="2.0", lifespan=lifespan)
 
 # ---------------------------------------------------------
 # SQLite Backtest Job Storage
@@ -537,18 +548,16 @@ async def get_predictions(symbol: str):
                 "text": f"AI SELL ({model_score:.2f})"
             })
     else:
-        # Fallback mock sinyalleri
-        for i in range(len(chart_data) - 10, len(chart_data)):
-            if random.random() > 0.8:
-                candle = chart_data[i]
-                signal_type = "sell" if random.random() > 0.5 else "buy"
-                signals.append({
-                    "time": candle['time'],
-                    "position": "aboveBar" if signal_type == "sell" else "belowBar",
-                    "color": "#ef5350" if signal_type == "sell" else "#00c853",
-                    "shape": "arrowDown" if signal_type == "sell" else "arrowUp",
-                    "text": f"AI {signal_type.upper()}"
-                })
+        # Fallback: DO NOT generate random signals (Institutional audit fix)
+        # We prefer "No Signal" over "Fake Signal".
+        # Display a warning signal to indicating model is offline
+        signals.append({
+            "time": chart_data[-1]['time'],
+            "position": "aboveBar",
+            "color": "#9e9e9e", # Grey
+            "shape": "circle",
+            "text": "MODEL OFFLINE"
+        })
 
     return {
         "forecast": forecast,
@@ -619,10 +628,6 @@ async def broadcast_updates():
             last_portfolio_state = current_state
             
         await asyncio.sleep(15)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(broadcast_updates())
 
 if __name__ == "__main__":
     import uvicorn

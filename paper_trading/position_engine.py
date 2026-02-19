@@ -28,7 +28,9 @@ class PositionEngine:
         symbol: str,
         target_weight: float,
         confidence: float,
-        price: float
+        price: float,
+        win_rate: float = None,
+        win_loss_ratio: float = None
     ) -> dict:
         """
         Compare target weight with current portfolio state

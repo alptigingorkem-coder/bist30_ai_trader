@@ -7,7 +7,9 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 import config
+import logging
 
+logger = logging.getLogger(__name__)
 
 class TechnicalMixin:
     """Teknik indikatör metotlarını sağlayan mixin."""
@@ -99,8 +101,8 @@ class TechnicalMixin:
                     span_a = ichi_df[span_a_cols[0]]
                     span_b = ichi_df[span_b_cols[0]]
                     df["ICHIMOKU_Kumo_Width"] = (span_a - span_b).abs()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Ichimoku calculation failed: {e}")
 
         # ADX - Trend gücü
         try:
@@ -108,16 +110,16 @@ class TechnicalMixin:
             if adx is not None:
                 adx = adx.add_prefix("ADX_")
                 df = pd.concat([df, adx], axis=1)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"ADX calculation failed: {e}")
 
         # Williams %R
         try:
             willr = ta.willr(df['High'], df['Low'], df['Close'])
             if willr is not None:
                 df['WilliamsR_14'] = willr
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Williams %R calculation failed: {e}")
 
         # VWAP
         try:
@@ -125,8 +127,8 @@ class TechnicalMixin:
                 vwap = ta.vwap(df['High'], df['Low'], df['Close'], df['Volume'])
                 if vwap is not None:
                     df['VWAP'] = vwap
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"VWAP calculation failed: {e}")
 
         self.data = df
         return df
@@ -138,33 +140,42 @@ class TechnicalMixin:
         df = self.data
 
         # Stochastic Oscillator
-        stoch = ta.stoch(df['High'], df['Low'], df['Close'])
-        if stoch is not None:
-            df = pd.concat([df, stoch], axis=1)
+        try:
+            stoch = ta.stoch(df['High'], df['Low'], df['Close'])
+            if stoch is not None:
+                df = pd.concat([df, stoch], axis=1)
+        except Exception as e:
+            logger.warning(f"Stochastic calculation failed: {e}")
 
         # Volume-based indicators
         if 'Volume' in df.columns:
-            df['OBV'] = ta.obv(df['Close'], df['Volume'])
+            try:
+                df['OBV'] = ta.obv(df['Close'], df['Volume'])
 
-            vol_ma = df['Volume'].rolling(20).mean()
-            df['Volume_Breakout'] = ((df['Volume'] / vol_ma > 1.5) & (df['Close'] > df['Open'])).astype(int)
+                vol_ma = df['Volume'].rolling(20).mean()
+                df['Volume_Breakout'] = ((df['Volume'] / vol_ma > 1.5) & (df['Close'] > df['Open'])).astype(int)
 
-            if 'OBV' in df.columns:
-                df['OBV_Slope'] = df['OBV'].pct_change(5)
+                if 'OBV' in df.columns:
+                    df['OBV_Slope'] = df['OBV'].pct_change(5)
 
-            df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'], length=14)
-            df['CMF_20'] = ta.cmf(df['High'], df['Low'], df['Close'], df['Volume'], length=20)
+                df['MFI'] = ta.mfi(df['High'], df['Low'], df['Close'], df['Volume'], length=14)
+                df['CMF_20'] = ta.cmf(df['High'], df['Low'], df['Close'], df['Volume'], length=20)
+            except Exception as e:
+                logger.warning(f"Volume indicators calculation failed: {e}")
 
         # Choppiness Index
         try:
             chop = ta.chop(df['High'], df['Low'], df['Close'], length=14)
             if chop is not None:
                 df['Choppiness_14'] = chop
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Choppiness calculation failed: {e}")
 
         # ATR
-        df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=getattr(config, 'ATR_PERIOD', 14))
+        try:
+            df['ATR'] = ta.atr(df['High'], df['Low'], df['Close'], length=getattr(config, 'ATR_PERIOD', 14))
+        except Exception as e:
+            logger.warning(f"ATR calculation failed: {e}")
 
         self.data = df
         return df

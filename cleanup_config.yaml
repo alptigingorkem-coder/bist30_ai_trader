@@ -1,0 +1,83 @@
+# Post-Development Cleanup Configuration
+# This file configures thresholds, exclusions, and categorization rules for the cleanup system
+
+# File size and retention thresholds
+thresholds:
+  # Files with fewer than this many lines are considered "small" and may be merged
+  small_file_lines: 100
+  
+  # Files with more than this many lines are considered "large" and may need splitting
+  large_file_lines: 500
+  
+  # Log files older than this many days will be removed during cleanup
+  log_retention_days: 30
+  
+  # Minimum similarity score (0.0-1.0) for code to be considered duplicate
+  duplicate_similarity: 0.85
+
+# Directories and patterns to exclude from analysis
+exclusions:
+  # Directories to skip during file scanning
+  directories:
+    - .venv
+    - __pycache__
+    - .git
+    - node_modules
+    - .pytest_cache
+    - .mypy_cache
+    - .tox
+    - build
+    - dist
+    - "*.egg-info"
+    - .vscode
+    - .idea
+    - htmlcov
+    - .coverage
+  
+  # File patterns to exclude from unused file detection
+  # These files are often entry points or special files that may not be imported
+  patterns:
+    - "test_*.py"
+    - "*_test.py"
+    - "__init__.py"
+    - "__main__.py"
+    - "setup.py"
+    - "conftest.py"
+
+# Script categorization rules
+script_categories:
+  # Explicitly list production scripts that should remain at scripts/ root
+  production:
+    - train_models.py
+    - run_backtest.py
+    - daily_run.py
+    - paper_trading_runner.py
+  
+  # Keywords that indicate analysis scripts (should go to scripts/analysis/)
+  analysis_keywords:
+    - analyze
+    - check
+    - inspect
+    - compare
+    - evaluate
+    - report
+    - visualize
+    - plot
+  
+  # Keywords that indicate maintenance scripts (should go to scripts/maintenance/)
+  maintenance_keywords:
+    - migrate
+    - update
+    - fix
+    - clean
+    - convert
+    - setup
+    - install
+  
+  # Keywords that indicate test scripts (should go to scripts/tests/)
+  test_keywords:
+    - test
+    - verify
+    - validate
+    - debug
+    - benchmark

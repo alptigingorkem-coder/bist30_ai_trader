@@ -1,37 +1,26 @@
-# Version Control
-.git
-.gitignore
-
-# Python Virtual Environment (The User's specific issue: 24GB folder)
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
 venv/
 .venv/
-env/
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Logs
-logs/
-*.log
-
-# Data (Handled via volumes or database)
-# Keeping data/ for now as it is small (7MB) and might be needed for COPY in non-volume setups, 
-# but venv is the main issue.
-# data/ 
-
-# IDE settings
-.idea/
-.vscode/
-
-# Project specific artifacts
-*.html
-*.png
-*.jpg
-reports/
-
-# Docker
-docker-compose.yml
-Dockerfile
+.git/
+.gitignore
 .dockerignore
+*.log
+mlruns/
+lightning_logs/
+archive/
+docs/
+tests/
+ui/node_modules/
+ui/.next/
+ui/out/
+.vscode/
+.idea/
+*.md
+LICENSE
+tickers.json
+results_*.txt

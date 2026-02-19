@@ -24,8 +24,8 @@ class KellyPositionSizer:
         wins = [t['pnl'] for t in self.trade_history if t['pnl'] > 0]
         losses = [t['pnl'] for t in self.trade_history if t['pnl'] <= 0]
         
-        # En az 5 win ve 5 loss olmadan Kelly hesaplama, varsayılanı kullan
-        if len(wins) < 5 or len(losses) < 5:
+        # En az 10 trade olmadan Kelly hesaplama, varsayılanı kullan
+        if len(self.trade_history) < 10:
             return self.initial_fraction
         
         p = len(wins) / len(self.trade_history)  # Win rate

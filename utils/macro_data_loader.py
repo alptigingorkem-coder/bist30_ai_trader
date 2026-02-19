@@ -36,7 +36,7 @@ class TurkeyMacroData:
                 # Not: EVDS kütüphanesi get_data dönüşünde bazen tarih sütunu 'Tarih' olarak gelir.
                 evds_data = self.evds.get_data(['TP.FG2', 'TP.DK.USD.A'], startdate=start_date_evds, enddate=end_date_evds)
                 
-                if evds_data and not evds_data.empty:
+                if evds_data is not None and not evds_data.empty:
                     # Sütun isimlerini düzelt
                     evds_data.rename(columns={
                         'TP_FG2': 'tcmb_rate',

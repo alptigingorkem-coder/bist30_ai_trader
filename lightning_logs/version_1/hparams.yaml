@@ -10,13 +10,22 @@ dataset_parameters:
     Sector: !!python/object:pytorch_forecasting.data.encoders.NaNLabelEncoder
       add_nan: false
       classes_: &id006
-        Banking: 0
-        Energy: 1
-        Glass: 2
-        Holding: 3
-        RealEstate: 4
-        Steel: 5
-        Telecom: 6
+        Agri: 0
+        Automotive: 1
+        Aviation: 2
+        Banking: 3
+        Cement: 4
+        Chemicals: 5
+        Construction: 6
+        Defense: 7
+        Energy: 8
+        Glass: 9
+        Holding: 10
+        RealEstate: 11
+        Retail: 12
+        Steel: 13
+        Technology: 14
+        Telecom: 15
       classes_vector_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - &id001 !!python/name:numpy.ndarray ''
@@ -27,10 +36,10 @@ dataset_parameters:
         state: !!python/tuple
         - 1
         - !!python/tuple
-          - 7
+          - 16
         - !!python/object/apply:numpy.dtype
           args:
-          - U10
+          - U12
           - false
           - true
           state: !!python/tuple
@@ -39,29 +48,59 @@ dataset_parameters:
           - null
           - null
           - null
-          - 40
+          - 48
           - 4
           - 8
         - false
         - !!binary |
-          QgAAAGEAAABuAAAAawAAAGkAAABuAAAAZwAAAAAAAAAAAAAAAAAAAEUAAABuAAAAZQAAAHIAAABn
-          AAAAeQAAAAAAAAAAAAAAAAAAAAAAAABHAAAAbAAAAGEAAABzAAAAcwAAAAAAAAAAAAAAAAAAAAAA
-          AAAAAAAASAAAAG8AAABsAAAAZAAAAGkAAABuAAAAZwAAAAAAAAAAAAAAAAAAAFIAAABlAAAAYQAA
-          AGwAAABFAAAAcwAAAHQAAABhAAAAdAAAAGUAAABTAAAAdAAAAGUAAABlAAAAbAAAAAAAAAAAAAAA
-          AAAAAAAAAAAAAAAAVAAAAGUAAABsAAAAZQAAAGMAAABvAAAAbQAAAAAAAAAAAAAAAAAAAA==
+          QQAAAGcAAAByAAAAaQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQQAAAHUAAAB0
+          AAAAbwAAAG0AAABvAAAAdAAAAGkAAAB2AAAAZQAAAAAAAAAAAAAAQQAAAHYAAABpAAAAYQAAAHQA
+          AABpAAAAbwAAAG4AAAAAAAAAAAAAAAAAAAAAAAAAQgAAAGEAAABuAAAAawAAAGkAAABuAAAAZwAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAQwAAAGUAAABtAAAAZQAAAG4AAAB0AAAAAAAAAAAAAAAAAAAA
+          AAAAAAAAAAAAAAAAQwAAAGgAAABlAAAAbQAAAGkAAABjAAAAYQAAAGwAAABzAAAAAAAAAAAAAAAA
+          AAAAQwAAAG8AAABuAAAAcwAAAHQAAAByAAAAdQAAAGMAAAB0AAAAaQAAAG8AAABuAAAARAAAAGUA
+          AABmAAAAZQAAAG4AAABzAAAAZQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQAAAG4AAABlAAAAcgAA
+          AGcAAAB5AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARwAAAGwAAABhAAAAcwAAAHMAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAASAAAAG8AAABsAAAAZAAAAGkAAABuAAAAZwAAAAAAAAAA
+          AAAAAAAAAAAAAAAAAAAAUgAAAGUAAABhAAAAbAAAAEUAAABzAAAAdAAAAGEAAAB0AAAAZQAAAAAA
+          AAAAAAAAUgAAAGUAAAB0AAAAYQAAAGkAAABsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUwAA
+          AHQAAABlAAAAZQAAAGwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAAAAGUAAABjAAAA
+          aAAAAG4AAABvAAAAbAAAAG8AAABnAAAAeQAAAAAAAAAAAAAAVAAAAGUAAABsAAAAZQAAAGMAAABv
+          AAAAbQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
       warn: true
     Ticker: !!python/object:pytorch_forecasting.data.encoders.NaNLabelEncoder
       add_nan: false
       classes_: &id007
         AKBNK.IS: 0
-        EKGYO.IS: 1
-        EREGL.IS: 2
-        ODAS.IS: 3
-        SAHOL.IS: 4
-        SISE.IS: 5
-        TSKB.IS: 6
-        TTKOM.IS: 7
-        YKBNK.IS: 8
+        ALARK.IS: 1
+        ASELS.IS: 2
+        ASTOR.IS: 3
+        BIMAS.IS: 4
+        EKGYO.IS: 5
+        ENKAI.IS: 6
+        FROTO.IS: 7
+        GARAN.IS: 8
+        GUBRF.IS: 9
+        HEKTS.IS: 10
+        ISCTR.IS: 11
+        KCHOL.IS: 12
+        KONTR.IS: 13
+        KRDMD.IS: 14
+        ODAS.IS: 15
+        OYAKC.IS: 16
+        PETKM.IS: 17
+        PGSUS.IS: 18
+        SAHOL.IS: 19
+        SASA.IS: 20
+        SISE.IS: 21
+        TAVHL.IS: 22
+        TCELL.IS: 23
+        THYAO.IS: 24
+        TOASO.IS: 25
+        TSKB.IS: 26
+        TTKOM.IS: 27
+        TUPRS.IS: 28
+        YKBNK.IS: 29
       classes_vector_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -72,7 +111,7 @@ dataset_parameters:
         state: !!python/tuple
         - 1
         - !!python/tuple
-          - 9
+          - 30
         - !!python/object/apply:numpy.dtype
           args:
           - U8
@@ -89,25 +128,57 @@ dataset_parameters:
           - 8
         - false
         - !!binary |
-          QQAAAEsAAABCAAAATgAAAEsAAAAuAAAASQAAAFMAAABFAAAASwAAAEcAAABZAAAATwAAAC4AAABJ
-          AAAAUwAAAEUAAABSAAAARQAAAEcAAABMAAAALgAAAEkAAABTAAAATwAAAEQAAABBAAAAUwAAAC4A
-          AABJAAAAUwAAAAAAAABTAAAAQQAAAEgAAABPAAAATAAAAC4AAABJAAAAUwAAAFMAAABJAAAAUwAA
-          AEUAAAAuAAAASQAAAFMAAAAAAAAAVAAAAFMAAABLAAAAQgAAAC4AAABJAAAAUwAAAAAAAABUAAAA
-          VAAAAEsAAABPAAAATQAAAC4AAABJAAAAUwAAAFkAAABLAAAAQgAAAE4AAABLAAAALgAAAEkAAABT
-          AAAA
+          QQAAAEsAAABCAAAATgAAAEsAAAAuAAAASQAAAFMAAABBAAAATAAAAEEAAABSAAAASwAAAC4AAABJ
+          AAAAUwAAAEEAAABTAAAARQAAAEwAAABTAAAALgAAAEkAAABTAAAAQQAAAFMAAABUAAAATwAAAFIA
+          AAAuAAAASQAAAFMAAABCAAAASQAAAE0AAABBAAAAUwAAAC4AAABJAAAAUwAAAEUAAABLAAAARwAA
+          AFkAAABPAAAALgAAAEkAAABTAAAARQAAAE4AAABLAAAAQQAAAEkAAAAuAAAASQAAAFMAAABGAAAA
+          UgAAAE8AAABUAAAATwAAAC4AAABJAAAAUwAAAEcAAABBAAAAUgAAAEEAAABOAAAALgAAAEkAAABT
+          AAAARwAAAFUAAABCAAAAUgAAAEYAAAAuAAAASQAAAFMAAABIAAAARQAAAEsAAABUAAAAUwAAAC4A
+          AABJAAAAUwAAAEkAAABTAAAAQwAAAFQAAABSAAAALgAAAEkAAABTAAAASwAAAEMAAABIAAAATwAA
+          AEwAAAAuAAAASQAAAFMAAABLAAAATwAAAE4AAABUAAAAUgAAAC4AAABJAAAAUwAAAEsAAABSAAAA
+          RAAAAE0AAABEAAAALgAAAEkAAABTAAAATwAAAEQAAABBAAAAUwAAAC4AAABJAAAAUwAAAAAAAABP
+          AAAAWQAAAEEAAABLAAAAQwAAAC4AAABJAAAAUwAAAFAAAABFAAAAVAAAAEsAAABNAAAALgAAAEkA
+          AABTAAAAUAAAAEcAAABTAAAAVQAAAFMAAAAuAAAASQAAAFMAAABTAAAAQQAAAEgAAABPAAAATAAA
+          AC4AAABJAAAAUwAAAFMAAABBAAAAUwAAAEEAAAAuAAAASQAAAFMAAAAAAAAAUwAAAEkAAABTAAAA
+          RQAAAC4AAABJAAAAUwAAAAAAAABUAAAAQQAAAFYAAABIAAAATAAAAC4AAABJAAAAUwAAAFQAAABD
+          AAAARQAAAEwAAABMAAAALgAAAEkAAABTAAAAVAAAAEgAAABZAAAAQQAAAE8AAAAuAAAASQAAAFMA
+          AABUAAAATwAAAEEAAABTAAAATwAAAC4AAABJAAAAUwAAAFQAAABTAAAASwAAAEIAAAAuAAAASQAA
+          AFMAAAAAAAAAVAAAAFQAAABLAAAATwAAAE0AAAAuAAAASQAAAFMAAABUAAAAVQAAAFAAAABSAAAA
+          UwAAAC4AAABJAAAAUwAAAFkAAABLAAAAQgAAAE4AAABLAAAALgAAAEkAAABTAAAA
       warn: true
     __group_id__Ticker: !!python/object:pytorch_forecasting.data.encoders.NaNLabelEncoder
       add_nan: false
       classes_:
         AKBNK.IS: 0
-        EKGYO.IS: 1
-        EREGL.IS: 2
-        ODAS.IS: 3
-        SAHOL.IS: 4
-        SISE.IS: 5
-        TSKB.IS: 6
-        TTKOM.IS: 7
-        YKBNK.IS: 8
+        ALARK.IS: 1
+        ASELS.IS: 2
+        ASTOR.IS: 3
+        BIMAS.IS: 4
+        EKGYO.IS: 5
+        ENKAI.IS: 6
+        FROTO.IS: 7
+        GARAN.IS: 8
+        GUBRF.IS: 9
+        HEKTS.IS: 10
+        ISCTR.IS: 11
+        KCHOL.IS: 12
+        KONTR.IS: 13
+        KRDMD.IS: 14
+        ODAS.IS: 15
+        OYAKC.IS: 16
+        PETKM.IS: 17
+        PGSUS.IS: 18
+        SAHOL.IS: 19
+        SASA.IS: 20
+        SISE.IS: 21
+        TAVHL.IS: 22
+        TCELL.IS: 23
+        THYAO.IS: 24
+        TOASO.IS: 25
+        TSKB.IS: 26
+        TTKOM.IS: 27
+        TUPRS.IS: 28
+        YKBNK.IS: 29
       classes_vector_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -118,7 +189,7 @@ dataset_parameters:
         state: !!python/tuple
         - 1
         - !!python/tuple
-          - 9
+          - 30
         - !!python/object/apply:numpy.dtype
           args:
           - U8
@@ -135,12 +206,23 @@ dataset_parameters:
           - 8
         - false
         - !!binary |
-          QQAAAEsAAABCAAAATgAAAEsAAAAuAAAASQAAAFMAAABFAAAASwAAAEcAAABZAAAATwAAAC4AAABJ
-          AAAAUwAAAEUAAABSAAAARQAAAEcAAABMAAAALgAAAEkAAABTAAAATwAAAEQAAABBAAAAUwAAAC4A
-          AABJAAAAUwAAAAAAAABTAAAAQQAAAEgAAABPAAAATAAAAC4AAABJAAAAUwAAAFMAAABJAAAAUwAA
-          AEUAAAAuAAAASQAAAFMAAAAAAAAAVAAAAFMAAABLAAAAQgAAAC4AAABJAAAAUwAAAAAAAABUAAAA
-          VAAAAEsAAABPAAAATQAAAC4AAABJAAAAUwAAAFkAAABLAAAAQgAAAE4AAABLAAAALgAAAEkAAABT
-          AAAA
+          QQAAAEsAAABCAAAATgAAAEsAAAAuAAAASQAAAFMAAABBAAAATAAAAEEAAABSAAAASwAAAC4AAABJ
+          AAAAUwAAAEEAAABTAAAARQAAAEwAAABTAAAALgAAAEkAAABTAAAAQQAAAFMAAABUAAAATwAAAFIA
+          AAAuAAAASQAAAFMAAABCAAAASQAAAE0AAABBAAAAUwAAAC4AAABJAAAAUwAAAEUAAABLAAAARwAA
+          AFkAAABPAAAALgAAAEkAAABTAAAARQAAAE4AAABLAAAAQQAAAEkAAAAuAAAASQAAAFMAAABGAAAA
+          UgAAAE8AAABUAAAATwAAAC4AAABJAAAAUwAAAEcAAABBAAAAUgAAAEEAAABOAAAALgAAAEkAAABT
+          AAAARwAAAFUAAABCAAAAUgAAAEYAAAAuAAAASQAAAFMAAABIAAAARQAAAEsAAABUAAAAUwAAAC4A
+          AABJAAAAUwAAAEkAAABTAAAAQwAAAFQAAABSAAAALgAAAEkAAABTAAAASwAAAEMAAABIAAAATwAA
+          AEwAAAAuAAAASQAAAFMAAABLAAAATwAAAE4AAABUAAAAUgAAAC4AAABJAAAAUwAAAEsAAABSAAAA
+          RAAAAE0AAABEAAAALgAAAEkAAABTAAAATwAAAEQAAABBAAAAUwAAAC4AAABJAAAAUwAAAAAAAABP
+          AAAAWQAAAEEAAABLAAAAQwAAAC4AAABJAAAAUwAAAFAAAABFAAAAVAAAAEsAAABNAAAALgAAAEkA
+          AABTAAAAUAAAAEcAAABTAAAAVQAAAFMAAAAuAAAASQAAAFMAAABTAAAAQQAAAEgAAABPAAAATAAA
+          AC4AAABJAAAAUwAAAFMAAABBAAAAUwAAAEEAAAAuAAAASQAAAFMAAAAAAAAAUwAAAEkAAABTAAAA
+          RQAAAC4AAABJAAAAUwAAAAAAAABUAAAAQQAAAFYAAABIAAAATAAAAC4AAABJAAAAUwAAAFQAAABD
+          AAAARQAAAEwAAABMAAAALgAAAEkAAABTAAAAVAAAAEgAAABZAAAAQQAAAE8AAAAuAAAASQAAAFMA
+          AABUAAAATwAAAEEAAABTAAAATwAAAC4AAABJAAAAUwAAAFQAAABTAAAASwAAAEIAAAAuAAAASQAA
+          AFMAAAAAAAAAVAAAAFQAAABLAAAATwAAAE0AAAAuAAAASQAAAFMAAABUAAAAVQAAAFAAAABSAAAA
+          UwAAAC4AAABJAAAAUwAAAFkAAABLAAAAQgAAAE4AAABLAAAALgAAAEkAAABTAAAA
       warn: true
   constant_fill_strategy: null
   group_ids:
@@ -150,7 +232,7 @@ dataset_parameters:
   max_prediction_length: 1
   min_encoder_length: 30
   min_prediction_idx: !!python/object/apply:numpy._core.multiarray.scalar
-  - &id005 !!python/object/apply:numpy.dtype
+  - !!python/object/apply:numpy.dtype
     args:
     - i8
     - false
@@ -227,12 +309,25 @@ dataset_parameters:
           - 0
         - false
         - !!binary |
-          c3pddTFdJ0A=
+          7sZLB5qbQEA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - &id004 !!python/object/apply:numpy.dtype
+        args:
+        - f8
+        - false
+        - true
+        state: !!python/tuple
+        - 3
+        - <
+        - null
+        - null
+        - null
+        - -1
+        - -1
+        - 0
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -247,7 +342,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          kGyZpduDMUA=
+          JFYGH1IHUUA=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -262,7 +357,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          /gJlaHEsc0A=
+          1Rpu25EfskA=
       with_mean: true
       with_std: true
     DayOfWeek: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -296,12 +391,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          u5Igitb//z8=
+          eEEkB5kBAEA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -316,7 +411,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          2CjT9ned9j8=
+          i66iRm6e9j8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -331,7 +426,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          txaUrBf3/z8=
+          aXkqB9D5/z8=
       with_mean: true
       with_std: true
     Log_Return_center: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -365,12 +460,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          xmUogdPzTT8=
+          yOHn4LKJVD8=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -385,7 +480,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          lN/B8FwdJj8=
+          axPtWvT0Nz8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -400,7 +495,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          fsQZefWQXj4=
+          81ZpWHLvgT4=
       with_mean: true
       with_std: true
     Log_Return_scale: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -434,12 +529,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          t0yUQ8i8mj8=
+          1sc6fJgzmz8=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -454,7 +549,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          FCV3hnm0Zj8=
+          HYWaLWTPbD8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -469,7 +564,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          dhLa8SAc4D4=
+          UwUWaS/w6T4=
       with_mean: true
       with_std: true
     MACD: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -503,12 +598,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          9uwAZRm9uD8=
+          pw33nHRn1T8=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -523,7 +618,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          WthBoMg/4j8=
+          MKCcXellAkA=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -538,7 +633,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          BtpVroHQ1D8=
+          Z/opMtYnFUA=
       with_mean: true
       with_std: true
     Month: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -572,12 +667,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          7NAgQhElGkA=
+          33Nis5clGkA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -592,7 +687,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          esLeKSnEC0A=
+          dkjwlSDmC0A=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -607,7 +702,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          fcQd77cXKEA=
+          9waS8c1SKEA=
       with_mean: true
       with_std: true
     RSI: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -641,12 +736,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          t1wDdYkySkA=
+          tVqXgGyRSkA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -661,7 +756,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          wnlIAIlAKUA=
+          Cc7SugFWKUA=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -676,7 +771,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          kuq8NljtY0A=
+          8qY13UkPZEA=
       with_mean: true
       with_std: true
     Volatility_20: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -710,12 +805,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          4kIg2bLclz8=
+          kQ+vdEhGmD8=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -730,7 +825,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          HoZEqlR+gz8=
+          cHPwhTN2hD8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -745,7 +840,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          q3ici+6/Fz8=
+          faV2B+oqGj8=
       with_mean: true
       with_std: true
     Volume: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -779,12 +874,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          iqHbHt36kkE=
+          AAAAAAAAAAA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -799,7 +894,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          EXXgUgX9mkE=
+          AAAAAAAA8D8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -814,7 +909,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          Mx7cQvnCRkM=
+          AAAAAAAAAAA=
       with_mean: true
       with_std: true
     encoder_length: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -851,9 +946,9 @@ dataset_parameters:
           AAAAAAAAAAA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -917,12 +1012,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          gxByZhj6gz8=
+          ocarCDGqij8=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -937,7 +1032,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          1My01zEVsT8=
+          eAPoY+7BsT8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -952,7 +1047,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          bLLR/SU9cj8=
+          WCNXKUm1cz8=
       with_mean: true
       with_std: true
     relative_time_idx: !!python/object:sklearn.preprocessing._data.StandardScaler
@@ -989,9 +1084,9 @@ dataset_parameters:
           AAAAAAAAAAA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -1055,12 +1150,12 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          tCcoXe9p8D8=
+          AAAAAAAAAAA=
       n_features_in_: 1
       n_samples_seen_: !!python/object/apply:numpy._core.multiarray.scalar
-      - *id002
+      - *id004
       - !!binary |
-        AAAAAMCy2EA=
+        AAAAAPBm80A=
       scale_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -1075,7 +1170,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          SIcPTybk4T8=
+          AAAAAAAA8D8=
       var_: !!python/object/apply:numpy._core.multiarray._reconstruct
         args:
         - *id001
@@ -1090,7 +1185,7 @@ dataset_parameters:
         - *id002
         - false
         - !!binary |
-          GPMprIYB1D8=
+          AAAAAAAAAAA=
       with_mean: true
       with_std: true
   static_categoricals:
@@ -1108,8 +1203,8 @@ dataset_parameters:
     method: standard
     method_kwargs: {}
     missing_:
-      center: 0.0009349194972809163
-      scale: 0.026200462059240887
+      center: 0.0012355712378656384
+      scale: 0.026205120072166195
     norm_: !!python/object:pandas.core.frame.DataFrame
       _flags:
         allows_duplicate_labels: true
@@ -1128,20 +1223,26 @@ dataset_parameters:
             - 1
             - !!python/tuple
               - 2
-              - 9
-            - *id002
+              - 30
+            - *id004
             - false
             - !!binary |
-              SWPaGe92Tz9OfzbyJaBKP5ZDFZ5wIVM/jEw8RBw8QT/4vSVVrKJOP+njzUofslE/We29eeu/TT8y
-              vGRt2HZNP4/uBWTsvU4/BfW8PkvUmj/9YmVeasGbPzI5FKc8Y5g//lC5vDKWoD8AUVJxpSOXPxhq
-              rxSp0Jc/Pfj/F+xVnD/7vb7nXyOaP3teS+pOEJs/
+              XYJK9L8aUD+cIen9U05ZP/gTyd5gel8/kt6XhLa4Yj8XDAJnGZtVP/rtWVYqQUs/GZdI/8/oVj+i
+              vDoxSKpYP4yJmhn29lE/xIEt3HREWz8u4vj5lCBcPxPozL+vNlE/oa8G6pseUj8qX0g0uRBiP/Md
+              4+NdcFE/adg3FhhVQD8dnnJZi01VP2SD07iT6E8/yfMgn0rCVD+bbcfOR35PPx5ep1bISmA/huLJ
+              EnsiUj9ZV1xobrpTPwxxfGkZkk8/tQd3PfYHVT9oevLkpM1VP+b2RDN4Yk4/iT1Z0gIaTj8gPd29
+              gFBYP9xI9fUDg08/8dH4sKgKmz/yK5chH5iaP4Y468GL9Zo/dBoPDqxtoT+RPA/V9cyVP4SWKUhr
+              zJs/wMIfBZWZlz9kl8Y4x5mZP+gSTLjhH5s/dzpNoa1/nz8aDPnAcQidP2+U8kJ365o/MULHyOA4
+              lz8d87nX4fukPx1A39XZ750/ex7lNwqaoD8jvGfx53yaPwTPktPbTJk/ShHp0C8Rnj+kaK2MQkOX
+              P9vwyd38YKE/0p4H8qPPlz/2UqJqkL+aP8YfFO7+YZc/gjs5axlrmj8IEMWdPw6aPy3cu+zxf5w/
+              EvOa7YNHmj8JF/6MidaXP4c200MNWps/
           - !!python/object/apply:builtins.slice
             - 0
             - 2
             - 1
           - 2
       - - !!python/object/apply:pandas.core.indexes.base._new_Index
-          - &id004 !!python/name:pandas.core.indexes.base.Index ''
+          - &id005 !!python/name:pandas.core.indexes.base.Index ''
           - data: !!python/object/apply:numpy._core.multiarray._reconstruct
               args:
               - *id001
@@ -1153,13 +1254,26 @@ dataset_parameters:
               - 1
               - !!python/tuple
                 - 2
-              - *id003
+              - !!python/object/apply:numpy.dtype
+                args:
+                - O8
+                - false
+                - true
+                state: !!python/tuple
+                - 3
+                - '|'
+                - null
+                - null
+                - null
+                - -1
+                - -1
+                - 63
               - false
               - - center
                 - scale
             name: null
         - !!python/object/apply:pandas.core.indexes.base._new_Index
-          - *id004
+          - *id005
           - data: !!python/object/apply:numpy._core.multiarray._reconstruct
               args:
               - *id001
@@ -1170,12 +1284,28 @@ dataset_parameters:
               state: !!python/tuple
               - 1
               - !!python/tuple
-                - 9
-              - *id005
+                - 30
+              - !!python/object/apply:numpy.dtype
+                args:
+                - i8
+                - false
+                - true
+                state: !!python/tuple
+                - 3
+                - <
+                - null
+                - null
+                - null
+                - -1
+                - -1
+                - 0
               - false
               - !!binary |
                 AAAAAAAAAAABAAAAAAAAAAIAAAAAAAAAAwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAABgAAAAAAAAAH
-                AAAAAAAAAAgAAAAAAAAA
+                AAAAAAAAAAgAAAAAAAAACQAAAAAAAAAKAAAAAAAAAAsAAAAAAAAADAAAAAAAAAANAAAAAAAAAA4A
+                AAAAAAAADwAAAAAAAAAQAAAAAAAAABEAAAAAAAAAEgAAAAAAAAATAAAAAAAAABQAAAAAAAAAFQAA
+                AAAAAAAWAAAAAAAAABcAAAAAAAAAGAAAAAAAAAAZAAAAAAAAABoAAAAAAAAAGwAAAAAAAAAcAAAA
+                AAAAAB0AAAAAAAAA
             name: Ticker
       _typ: dataframe
       attrs: {}
@@ -1205,18 +1335,18 @@ embedding_labels:
 embedding_paddings: []
 embedding_sizes:
   Sector: !!python/tuple
-  - 7
-  - 5
+  - 16
+  - 8
   Ticker: !!python/tuple
-  - 9
-  - 5
+  - 30
+  - 11
 hidden_continuous_size: 16
 hidden_continuous_sizes: {}
 hidden_size: 128
 learning_rate: 0.03
 log_gradient_flow: false
 log_interval: 10
-log_val_interval: null
+log_val_interval: 10
 lstm_layers: 1
 mask_bias: -1000000000.0
 max_encoder_length: 60

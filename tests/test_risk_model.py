@@ -28,6 +28,7 @@ class TestRiskManager(unittest.TestCase):
     def test_check_exit_conditions_stop_loss(self):
         # Entry: 100, Stop Mult: 3, ATR: 2 => Stop Distance = 6 => Stop Price = 94
         self.rm.stop_loss_mult = 3.0
+        self.rm.trailing_stop_mult = 5.0  # Trailing stop'u devre dışı bırak (bu testte)
         entry_price = 100
         atr = 2.0
         

@@ -18,7 +18,8 @@ from core.backtest.engine import BacktestEngineMixin
 from core.backtest.metrics import BacktestMetricsMixin
 from core.backtest.visualizer import BacktestVisualizerMixin
 import pandas as pd
-
+import config
+from models.regime_detector import RegimeDetector
 
 class Backtester(
     BacktestEngineMixin,
@@ -50,3 +51,10 @@ class Backtester(
         self.initial_capital = initial_capital
         self.commission = commission
         self.position_sizer = KellyPositionSizer()
+        
+        # Initialize Regime Detector
+        regime_config = {
+            'REGIME_THRESHOLDS': getattr(config, 'REGIME_THRESHOLDS', {}),
+            'REGIME_ACTIONS': getattr(config, 'REGIME_ACTIONS', {})
+        }
+        self.regime_detector = RegimeDetector(regime_config)

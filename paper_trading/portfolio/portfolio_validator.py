@@ -82,6 +82,11 @@ class PortfolioValidator:
             - can_open: True if position can be opened, False otherwise
             - reason: Explanation string ("OK" if can open, error code otherwise)
         """
+        # Check 0: Valid size percentage
+        if size_pct <= 0:
+            logger.debug(f"Cannot open {symbol}: INVALID_SIZE_PCT ({size_pct})")
+            return False, "INVALID_SIZE_PCT"
+        
         # Check 1: Already has position?
         if symbol in current_positions:
             logger.debug(f"Cannot open {symbol}: ALREADY_HAS_POSITION")
@@ -147,6 +152,11 @@ class PortfolioValidator:
         """
         # Check 1: Daily max loss
         if daily_pnl < 0:
+            # Handle zero capital edge case
+            if initial_capital <= 0:
+                logger.warning("Cannot check stress limits: initial capital is zero or negative")
+                return False, "INVALID_CAPITAL"
+            
             daily_loss_pct = abs(daily_pnl) / initial_capital
             if daily_loss_pct >= self.daily_max_loss_pct:
                 reason = (

@@ -259,6 +259,138 @@ class TestPortfolioRepositoryCSVExport:
         assert csv_file.parent.exists()
 
 
+class TestPortfolioRepositoryEdgeCases:
+    """Test edge cases and error conditions."""
+    
+    def test_load_with_unicode_characters(self, tmp_path):
+        """Test loading state with Turkish characters."""
+        # Setup
+        state_file = tmp_path / "unicode_state.json"
+        test_state = {
+            "cash": 100000,
+            "positions": {
+                "ŞEKER": {"quantity": 100},
+                "İŞBANK": {"quantity": 50}
+            },
+            "note": "Türkçe karakterler: ğüşıöç"
+        }
+        
+        with open(state_file, 'w', encoding='utf-8') as f:
+            json.dump(test_state, f, ensure_ascii=False)
+        
+        # Test
+        repo = PortfolioRepository(str(state_file))
+        loaded = repo.load()
+        
+        # Assert
+        assert loaded == test_state
+        assert "ŞEKER" in loaded["positions"]
+        assert "İŞBANK" in loaded["positions"]
+    
+    def test_save_with_unicode_characters(self, tmp_path):
+        """Test saving state with Turkish characters."""
+        # Setup
+        state_file = tmp_path / "unicode_save.json"
+        test_state = {
+            "positions": {"ŞEKER": {"quantity": 100}},
+            "note": "Türkçe: ğüşıöç"
+        }
+        
+        # Test
+        repo = PortfolioRepository(str(state_file))
+        result = repo.save(test_state)
+        
+        # Assert
+        assert result is True
+        
+        # Verify by reading file
+        with open(state_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            assert "ŞEKER" in content
+            assert "Türkçe" in content
+    
+    def test_load_with_empty_file(self, tmp_path):
+        """Test loading from an empty file."""
+        # Setup
+        state_file = tmp_path / "empty.json"
+        
+        # Create empty file
+        state_file.touch()
+        
+        # Test & Assert
+        repo = PortfolioRepository(str(state_file))
+        with pytest.raises(ValueError):
+            repo.load()
+    
+    def test_save_with_very_large_state(self, tmp_path):
+        """Test saving a large state with many positions."""
+        # Setup
+        state_file = tmp_path / "large_state.json"
+        
+        # Create state with 100 positions
+        positions = {f"STOCK{i}": {"quantity": i * 10} for i in range(100)}
+        test_state = {
+            "cash": 100000,
+            "positions": positions,
+            "trade_history": [{"symbol": f"STOCK{i}", "pnl": i} for i in range(1000)]
+        }
+        
+        # Test
+        repo = PortfolioRepository(str(state_file))
+        result = repo.save(test_state)
+        
+        # Assert
+        assert result is True
+        
+        # Verify by loading
+        loaded = repo.load()
+        assert len(loaded["positions"]) == 100
+        assert len(loaded["trade_history"]) == 1000
+    
+    def test_save_with_special_float_values(self, tmp_path):
+        """Test saving state with special float values."""
+        # Setup
+        state_file = tmp_path / "float_state.json"
+        test_state = {
+            "cash": 100000.123456789,
+            "realized_pnl": -1500.50,
+            "peak_equity": 0.0
+        }
+        
+        # Test
+        repo = PortfolioRepository(str(state_file))
+        repo.save(test_state)
+        loaded = repo.load()
+        
+        # Assert
+        assert loaded["cash"] == test_state["cash"]
+        assert loaded["realized_pnl"] == test_state["realized_pnl"]
+        assert loaded["peak_equity"] == test_state["peak_equity"]
+    
+    def test_export_csv_with_special_characters(self, tmp_path):
+        """Test CSV export with special characters."""
+        # Setup
+        csv_file = tmp_path / "special_trades.csv"
+        trades = [
+            {"symbol": "ŞEKER", "pnl": 100.50, "note": "Güzel işlem"},
+            {"symbol": "İŞBANK", "pnl": -50.25, "note": "Kötü işlem"}
+        ]
+        
+        # Test
+        repo = PortfolioRepository()
+        result = repo.export_to_csv(trades, str(csv_file))
+        
+        # Assert
+        assert result is True
+        
+        # Verify content
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            assert "ŞEKER" in content
+            assert "İŞBANK" in content
+            assert "Güzel işlem" in content
+
+
 class TestPortfolioRepositoryIntegration:
     """Integration tests for PortfolioRepository."""
     
@@ -296,3 +428,48 @@ class TestPortfolioRepositoryIntegration:
         assert loaded_state["cash"] == original_state["cash"]
         assert loaded_state["positions"] == original_state["positions"]
         assert loaded_state["realized_pnl"] == original_state["realized_pnl"]
+    
+    def test_multiple_save_load_cycles(self, tmp_path):
+        """Test multiple save/load cycles preserve data."""
+        # Setup
+        state_file = tmp_path / "cycles.json"
+        repo = PortfolioRepository(str(state_file))
+        
+        # Cycle 1
+        state1 = {"cash": 100000, "positions": {}}
+        repo.save(state1)
+        loaded1 = repo.load()
+        assert loaded1 == state1
+        
+        # Cycle 2 - modify state
+        state2 = {"cash": 95000, "positions": {"ASELS": {"quantity": 100}}}
+        repo.save(state2)
+        loaded2 = repo.load()
+        assert loaded2 == state2
+        assert loaded2 != state1
+        
+        # Cycle 3 - modify again
+        state3 = {"cash": 90000, "positions": {"ASELS": {"quantity": 50}}}
+        repo.save(state3)
+        loaded3 = repo.load()
+        assert loaded3 == state3
+        assert loaded3 != state2
+    
+    def test_concurrent_repository_instances(self, tmp_path):
+        """Test that multiple repository instances work correctly."""
+        # Setup
+        state_file = tmp_path / "shared.json"
+        test_state = {"cash": 100000, "positions": {}}
+        
+        # Create two repository instances
+        repo1 = PortfolioRepository(str(state_file))
+        repo2 = PortfolioRepository(str(state_file))
+        
+        # Save with repo1
+        repo1.save(test_state)
+        
+        # Load with repo2
+        loaded = repo2.load()
+        
+        # Assert
+        assert loaded == test_state

@@ -1,0 +1,474 @@
+======================================================================
+🔍 BIST30 AI TRADER - CODE QUALITY ANALYSIS
+======================================================================
+Tarih: 2026-02-22T00:49:24.365179
+======================================================================
+
+🔍 1/4: DRY Analysis...
+======================================================================
+1️⃣ DRY (Don't Repeat Yourself) ANALİZİ
+======================================================================
+
+📁 247 Python dosyası analiz ediliyor...
+
+⚠️  1 DUPLICATE KOD GRUBU TESPİT EDİLDİ
+📊 Toplam gereksiz kod: ~9 satır
+
+🔴 EN KRİTİK 10 DUPLICATE:
+
+1. Duplicate Grup:
+   Tekrar sayısı: 2x
+   Satır sayısı: 9
+   Etki: 9 gereksiz satır
+   Similarity: 100%
+   Lokasyonlar:
+     - tests/test_ranking_model_blacklist.py:20-28
+     - tests/test_ranking_model_integration.py:21-29
+
+   💡 ÖNERİ: Bu kodu utils/common.py taşı
+      Ortak fonksiyon adı: extract_common_logic()
+
+🔍 2/4: SRP Analysis...
+======================================================================
+2️⃣ SRP (Single Responsibility Principle) ANALİZİ
+======================================================================
+
+⚠️  92 SRP İHLALİ TESPİT EDİLDİ
+
+🔴 EN KRİTİK 10 İHLAL:
+
+1. utils/data_loader.py:22
+   Sınıf: DataLoader
+   Satır sayısı: 460
+   Method sayısı: 10
+   Sorumluluk sayısı: 8 🔴 KRİTİK
+   Complexity: 24.6
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - Communication
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: DataLoaderRepository oluştur
+     - Formatter class: DataLoaderFormatter oluştur
+     - Service layer: DataLoaderService + DataLoaderRepository'ye böl
+
+2. scripts/maintenance/core/unused_detector.py:30
+   Sınıf: UnusedFileDetector
+   Satır sayısı: 268
+   Method sayısı: 7
+   Sorumluluk sayısı: 8 🔴 KRİTİK
+   Complexity: 16.7
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - Communication
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: UnusedFileDetectorRepository oluştur
+     - Formatter class: UnusedFileDetectorFormatter oluştur
+     - Service layer: UnusedFileDetectorService + UnusedFileDetectorRepository'ye böl
+
+3. scripts/quality/check_srp_violations.py:32
+   Sınıf: SRPAnalyzer
+   Satır sayısı: 179
+   Method sayısı: 8
+   Sorumluluk sayısı: 8 🔴 KRİTİK
+   Complexity: 17.8
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - Communication
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: SRPAnalyzerRepository oluştur
+     - Formatter class: SRPAnalyzerFormatter oluştur
+     - Service layer: SRPAnalyzerService + SRPAnalyzerRepository'ye böl
+
+4. paper_trading/portfolio_state.py:16
+   Sınıf: PortfolioState
+   Satır sayısı: 686
+   Method sayısı: 38
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 82.9
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Communication
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: PortfolioStateRepository oluştur
+     - Formatter class: PortfolioStateFormatter oluştur
+     - Service layer: PortfolioStateService + PortfolioStateRepository'ye böl
+     - Sınıf çok büyük (686 satır), küçük sınıflara böl
+     - Çok fazla method (38), ilgili method'ları grupla ve ayrı sınıflara taşı
+
+5. paper_trading/strategy_health.py:36
+   Sınıf: StrategyHealth
+   Satır sayısı: 625
+   Method sayısı: 30
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 66.2
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: StrategyHealthRepository oluştur
+     - Formatter class: StrategyHealthFormatter oluştur
+     - Service layer: StrategyHealthService + StrategyHealthRepository'ye böl
+     - Sınıf çok büyük (625 satır), küçük sınıflara böl
+     - Çok fazla method (30), ilgili method'ları grupla ve ayrı sınıflara taşı
+
+6. core/backtest/engine.py:11
+   Sınıf: BacktestEngineMixin
+   Satır sayısı: 460
+   Method sayısı: 3
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 10.6
+
+   Tespit edilen sorumluluklar:
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - Communication
+     - File Operations
+
+   💡 ÖNERİ:
+     - Formatter class: BacktestEngineMixinFormatter oluştur
+
+7. models/transformer_model.py:15
+   Sınıf: BIST30TransformerModel
+   Satır sayısı: 385
+   Method sayısı: 8
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 19.9
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: BIST30TransformerModelRepository oluştur
+     - Formatter class: BIST30TransformerModelFormatter oluştur
+     - Service layer: BIST30TransformerModelService + BIST30TransformerModelRepository'ye böl
+
+8. scripts/analysis/feature_selector.py:19
+   Sınıf: FeatureSelector
+   Satır sayısı: 213
+   Method sayısı: 5
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 12.1
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: FeatureSelectorRepository oluştur
+     - Formatter class: FeatureSelectorFormatter oluştur
+     - Service layer: FeatureSelectorService + FeatureSelectorRepository'ye böl
+
+9. scripts/maintenance/core/auto_cleanup.py:28
+   Sınıf: AutoCleanupManager
+   Satır sayısı: 177
+   Method sayısı: 8
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 17.8
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: AutoCleanupManagerRepository oluştur
+     - Formatter class: AutoCleanupManagerFormatter oluştur
+     - Service layer: AutoCleanupManagerService + AutoCleanupManagerRepository'ye böl
+
+10. core/live_data_engine.py:54
+   Sınıf: LiveDataEngine
+   Satır sayısı: 142
+   Method sayısı: 5
+   Sorumluluk sayısı: 7 🔴 KRİTİK
+   Complexity: 11.4
+
+   Tespit edilen sorumluluklar:
+     - Data Access
+     - Business Logic
+     - Presentation
+     - Logging
+     - Error Handling
+     - Configuration
+     - File Operations
+
+   💡 ÖNERİ:
+     - Repository pattern: LiveDataEngineRepository oluştur
+     - Formatter class: LiveDataEngineFormatter oluştur
+     - Service layer: LiveDataEngineService + LiveDataEngineRepository'ye böl
+
+🔍 3/4: Complexity Analysis...
+======================================================================
+3️⃣ FUNCTION COMPLEXITY ANALİZİ
+======================================================================
+
+📊 GENEL İSTATİSTİKLER:
+   Toplam fonksiyon: 1063
+   Karmaşık fonksiyon: 67 (%6.3)
+   Ortalama Cyclomatic: 3.7
+
+🔴 EN KARMAŞIK 15 FONKSİYON:
+
+Fonksiyon                                Dosya                                      CC  Cog  LOC Params Depth
+--------------------------------------------------------------------------------------------------------------
+main                                     scripts/analysis/run_backtest.py           85  192  620      0     4 🔴
+run_backtest                             core/backtest/engine.py                    65  224  417      5     8 🔴
+analyze_attention                        scripts/analysis/analyze_tft_attention.    38   73  198      0     4 🟠
+run_position_aware_session               paper_trading/position_runner.py           36   86  304      1     5 🟠
+check_file                               scripts/utility/audit_repo.py              34   98   53      1     7 🟠
+comprehensive_walk_forward               scripts/training/walk_forward_validatio    31   63  291      0     4 🟠
+evaluate_project_quality                 scripts/analysis/project_evaluation.py     28   55  337      0     3 🟠
+check_forward_looking_features           scripts/analysis/check_forward_looking_    28   52  148      0     3 🟠
+run_dynamic_backtest                     core/dynamic_backtest.py                   27   67  280      6     3 🟠
+predict                                  models/transformer_model.py                27   69  107      4     5 🟠
+predict                                  models/ensemble_model.py                   26   53  117      5     4 🟠
+run_integration_test                     scripts/validation/verify_integration.p    25   27  193      0     2 🟠
+increase_trade_frequency                 scripts/utility/increase_trade_frequenc    25   70  204      0     5 🟠
+generate_final_validation_report         scripts/analysis/final_validation_repor    23   53  180      0     4 🟠
+shuffle_test                             scripts/utility/shuffle_test.py            23   45  201      0     3 🟠
+
+💡 COMPLEXITY REHBERİ:
+   CC (Cyclomatic Complexity):
+     1-10: ✅ Basit (test kolay)
+     11-20: 🟡 Orta (dikkat)
+     21-50: 🟠 Karmaşık (refactor önerilir)
+     50+: 🔴 Çok karmaşık (mutlaka refactor)
+
+   Cog (Cognitive Complexity):
+     0-5: ✅ Anlaşılır
+     6-15: 🟡 Orta
+     16+: 🔴 Anlaşılması zor
+
+💡 REFACTORING ÖNERİLERİ:
+
+📌 main (scripts/analysis/run_backtest.py:22)
+   - Extract method: Karmaşık blokları ayrı fonksiyonlara taşı
+   - Guard clauses: Early return kullanarak nested depth'i azalt
+   - Fonksiyon çok uzun (620 satır): Daha küçük fonksiyonlara böl
+   - Cognitive complexity yüksek: Nested if'leri basitleştir, polymorphism kullan
+
+📌 run_backtest (core/backtest/engine.py:54)
+   - Extract method: Karmaşık blokları ayrı fonksiyonlara taşı
+   - Guard clauses: Early return kullanarak nested depth'i azalt
+   - Fonksiyon çok uzun (417 satır): Daha küçük fonksiyonlara böl
+   - Cognitive complexity yüksek: Nested if'leri basitleştir, polymorphism kullan
+
+📌 analyze_attention (scripts/analysis/analyze_tft_attention.py:21)
+   - Extract method: Karmaşık blokları ayrı fonksiyonlara taşı
+   - Guard clauses: Early return kullanarak nested depth'i azalt
+   - Fonksiyon çok uzun (198 satır): Daha küçük fonksiyonlara böl
+   - Cognitive complexity yüksek: Nested if'leri basitleştir, polymorphism kullan
+
+📌 run_position_aware_session (paper_trading/position_runner.py:53)
+   - Extract method: Karmaşık blokları ayrı fonksiyonlara taşı
+   - Guard clauses: Early return kullanarak nested depth'i azalt
+   - Fonksiyon çok uzun (304 satır): Daha küçük fonksiyonlara böl
+   - Cognitive complexity yüksek: Nested if'leri basitleştir, polymorphism kullan
+
+📌 check_file (scripts/utility/audit_repo.py:6)
+   - Extract method: Karmaşık blokları ayrı fonksiyonlara taşı
+   - Guard clauses: Early return kullanarak nested depth'i azalt
+   - Cognitive complexity yüksek: Nested if'leri basitleştir, polymorphism kullan
+
+🔍 4/4: Code Smell Detection...
+======================================================================
+4️⃣ CODE SMELL ANALİZİ
+======================================================================
+
+📊 TOPLAM 1222 CODE SMELL TESPİT EDİLDİ:
+   🔴 Yüksek Severity: 66
+   🟠 Orta Severity: 99
+   🟡 Düşük Severity: 1057
+
+📋 SMELL TİPLERİ:
+   Magic Number: 840
+   Long Function: 148
+   Dead Code: 147
+   Commented Code: 70
+   Long Parameter List: 14
+   God Class: 3
+
+🔴 EN KRİTİK 20 CODE SMELL:
+
+1. 🔴 [Long Function]
+   📁 core/dynamic_backtest.py:76
+   ⚠️  Fonksiyon çok uzun: 158 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+2. 🔴 [Long Function]
+   📁 core/dynamic_backtest.py:262
+   ⚠️  Fonksiyon çok uzun: 280 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+3. 🔴 [Long Function]
+   📁 tests/evaluate_models.py:28
+   ⚠️  Fonksiyon çok uzun: 210 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+4. 🔴 [Long Function]
+   📁 utils/data_loader.py:156
+   ⚠️  Fonksiyon çok uzun: 111 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+5. 🔴 [Long Function]
+   📁 utils/data_loader.py:312
+   ⚠️  Fonksiyon çok uzun: 105 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+6. 🔴 [Long Function]
+   📁 utils/kap_data_fetcher.py:96
+   ⚠️  Fonksiyon çok uzun: 101 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+7. 🔴 [Long Function]
+   📁 models/transformer_model.py:244
+   ⚠️  Fonksiyon çok uzun: 107 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+8. 🔴 [Long Function]
+   📁 models/ranking_model.py:52
+   ⚠️  Fonksiyon çok uzun: 151 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+9. 🔴 [Long Function]
+   📁 models/ranking_model.py:205
+   ⚠️  Fonksiyon çok uzun: 111 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+10. 🔴 [Long Function]
+   📁 models/ensemble_model.py:70
+   ⚠️  Fonksiyon çok uzun: 117 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+11. 🔴 [Long Function]
+   📁 models/regime_detection.py:86
+   ⚠️  Fonksiyon çok uzun: 151 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+12. 🔴 [God Class]
+   📁 paper_trading/portfolio_state.py:16
+   ⚠️  Çok büyük sınıf: 686 satır, 38 method
+   💡 Sınıfı daha küçük, cohesive sınıflara böl (SRP uygula)
+
+13. 🔴 [God Class]
+   📁 paper_trading/strategy_health.py:36
+   ⚠️  Çok büyük sınıf: 625 satır, 30 method
+   💡 Sınıfı daha küçük, cohesive sınıflara böl (SRP uygula)
+
+14. 🔴 [Long Function]
+   📁 paper_trading/position_runner.py:53
+   ⚠️  Fonksiyon çok uzun: 304 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+15. 🔴 [Long Function]
+   📁 archive/research/monte_carlo_validation.py:29
+   ⚠️  Fonksiyon çok uzun: 109 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+16. 🔴 [Long Function]
+   📁 archive/research/monte_carlo_validation.py:231
+   ⚠️  Fonksiyon çok uzun: 130 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+17. 🔴 [Long Function]
+   📁 archive/research/auto_tune.py:115
+   ⚠️  Fonksiyon çok uzun: 112 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+18. 🔴 [Long Function]
+   📁 archive/research/benchmark_architectures.py:74
+   ⚠️  Fonksiyon çok uzun: 152 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+19. 🔴 [Long Function]
+   📁 archive/research/optuna_nested_walk_forward.py:184
+   ⚠️  Fonksiyon çok uzun: 105 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+20. 🔴 [Long Function]
+   📁 archive/research/optuna_nested_walk_forward.py:364
+   ⚠️  Fonksiyon çok uzun: 146 satır
+   💡 Fonksiyonu daha küçük, odaklanmış fonksiyonlara böl
+
+======================================================================
+📊 FINAL KOD KALİTESİ RAPORU
+======================================================================
+
+🎯 KALİTE SKORLARI:
+   DRY (Don't Repeat Yourself):      99.1/100
+   SRP (Single Responsibility):      0.0/100
+   Complexity (Cyclomatic):          0.0/100
+   Code Smells:                      0.0/100
+
+   🏆 GENEL SKOR:                    29.7/100
+
+📝 NOT: F (Başarısız) 🔴
+   Kod kalitesi çok düşük. Kapsamlı refactoring şart.
+
+📊 DETAYLI İSTATİSTİKLER:
+   Duplicate kod grupları: 1
+   SRP ihlalleri: 92
+   Karmaşık fonksiyonlar: 67
+   Code smell'ler: 1222
+
+🎯 ÖNCELİKLİ AKSIYONLAR:
+   2. SRP ihlallerini düzelt (92 sınıf çok fazla sorumluluk taşıyor)
+   3. Karmaşık fonksiyonları basitleştir (67 fonksiyon çok karmaşık)
+   4. Kritik code smell'leri düzelt (66 adet)
+
+💾 Detaylı rapor kaydedildi: CODE_QUALITY_REPORT.md

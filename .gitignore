@@ -180,3 +180,4 @@ Thumbs.db
 .gemini/
 =6.0.0
 mlruns/
+catboost_info/

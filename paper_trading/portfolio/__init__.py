@@ -13,5 +13,6 @@ Components:
 """
 
 from paper_trading.portfolio.portfolio_repository import PortfolioRepository
+from paper_trading.portfolio.portfolio_validator import PortfolioValidator
 
-__all__ = ["PortfolioRepository"]
+__all__ = ["PortfolioRepository", "PortfolioValidator"]

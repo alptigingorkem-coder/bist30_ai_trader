@@ -120,13 +120,13 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - _Requirements: 1.6, 5.1, 5.6_
 
 - [ ] 3. Phase 1: StrategyHealth Refactoring
-  - [ ] 3.1 Create HealthMetrics class
+  - [x] 3.1 Create HealthMetrics class
     - Extract metric calculation methods (calculate_win_rate, calculate_profit_factor, calculate_sharpe_ratio, calculate_max_drawdown)
     - Implement rolling metrics calculation
     - Add pure calculation methods without side effects
     - _Requirements: 1.2, 1.4_
   
-  - [ ]* 3.2 Write unit tests for HealthMetrics
+  - [x]* 3.2 Write unit tests for HealthMetrics
     - Test win rate calculation
     - Test profit factor calculation
     - Test Sharpe ratio calculation

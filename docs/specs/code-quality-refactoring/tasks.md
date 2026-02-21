@@ -159,19 +159,19 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Test report export
     - _Requirements: 5.2_
   
-  - [ ] 3.7 Create HealthValidator class
+  - [x] 3.7 Create HealthValidator class
     - Extract validation methods (is_healthy, check_invalidation_rules, should_skip_regime)
     - Implement threshold-based validation
     - Add configuration for health thresholds
     - _Requirements: 1.2, 1.4_
   
-  - [ ]* 3.8 Write unit tests for HealthValidator
+  - [x]* 3.8 Write unit tests for HealthValidator
     - Test health threshold checks
     - Test invalidation rules
     - Test regime skip logic
     - _Requirements: 5.2_
   
-  - [ ] 3.9 Refactor StrategyHealth to use new components
+  - [-] 3.9 Refactor StrategyHealth to use new components
     - Simplify StrategyHealth to orchestrator role (100-120 lines)
     - Initialize specialized components in __init__
     - Delegate method calls to appropriate components

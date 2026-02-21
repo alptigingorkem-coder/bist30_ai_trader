@@ -15,7 +15,7 @@ Alt modüller:
 """
 from core.position_sizing import KellyPositionSizer
 from core.backtest.engine import BacktestEngineMixin
-from core.backtest.metrics import BacktestMetricsMixin
+# from core.backtest.metrics import BacktestMetricsMixin  # TODO: Implement metrics module
 from core.backtest.visualizer import BacktestVisualizerMixin
 import pandas as pd
 import config
@@ -23,7 +23,7 @@ from models.regime_detector import RegimeDetector
 
 class Backtester(
     BacktestEngineMixin,
-    BacktestMetricsMixin,
+    # BacktestMetricsMixin,  # TODO: Implement metrics module
     BacktestVisualizerMixin,
 ):
     """

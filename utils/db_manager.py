@@ -27,7 +27,7 @@ class DBManager:
                 log.info("Database connection pool created.")
                 self._init_schema()
             except Exception as e:
-                log.error(f"Error creating connection pool: {e}")
+                log.debug(f"Database connection not available: {e}")
                 DBManager._pool = None
 
     def get_connection(self):

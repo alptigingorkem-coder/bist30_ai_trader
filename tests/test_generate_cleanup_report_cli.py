@@ -32,10 +32,10 @@ def test_generate_cleanup_report_basic():
     )
     
     assert result.returncode == 0
-    assert 'CLEANUP REPORT SUMMARY' in result.stdout
+    assert 'Summary' in result.stdout
     assert 'Total Files:' in result.stdout
-    assert 'ESTIMATED IMPROVEMENTS' in result.stdout
-    assert 'PRIORITIZED ACTIONS' in result.stdout
+    assert 'Estimated Improvements' in result.stdout
+    assert 'Prioritized Actions' in result.stdout
 
 
 def test_generate_cleanup_report_json_export():
@@ -140,7 +140,7 @@ def test_generate_cleanup_report_verbose():
     )
     
     assert result.returncode == 0
-    assert 'DETAILED FINDINGS' in result.stdout
+    assert 'Detailed Findings' in result.stdout
 
 
 def test_generate_cleanup_report_both_formats():

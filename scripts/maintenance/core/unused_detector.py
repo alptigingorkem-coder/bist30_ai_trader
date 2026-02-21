@@ -120,7 +120,7 @@ class UnusedFileDetector:
             special_files=special_files
         )
     
-    def is_special_file(self, file_info: FileInfo) -> bool:
+    def is_special_file(self, file_info) -> bool:
         """Check if file is special and should not be marked as unused.
         
         Special files are excluded from unused file detection because they serve
@@ -137,12 +137,19 @@ class UnusedFileDetector:
         - Files in paper_trading/ directory: Live trading scripts
         
         Args:
-            file_info: FileInfo object to check
+            file_info: FileInfo object or Path object to check
             
         Returns:
             True if the file is a special file
         """
-        file_path = file_info.path
+        # Handle both FileInfo objects and Path objects
+        if isinstance(file_info, Path):
+            file_path = file_info
+            has_main_block = False  # Can't determine without parsing
+        else:
+            file_path = file_info.path
+            has_main_block = file_info.has_main_block
+        
         filename = file_path.name
         
         # Check for special filenames
@@ -150,7 +157,7 @@ class UnusedFileDetector:
             return True
         
         # Check if file has a main block (entry point)
-        if file_info.has_main_block:
+        if has_main_block:
             return True
         
         # Check if file is in special directories
@@ -160,12 +167,20 @@ class UnusedFileDetector:
             'api',             # API endpoints
             'configs',         # Configuration files
             'examples',        # Example scripts
-            'scripts',         # CLI tools
             'paper_trading',   # Live trading
         }
         
         for special_dir in special_dirs:
             if special_dir in parts:
+                return True
+        
+        # Special case for scripts: only top-level scripts are special
+        # scripts/train.py -> special (top-level)
+        # scripts/analysis/helper.py -> not special (subdirectory)
+        if 'scripts' in parts:
+            scripts_index = parts.index('scripts')
+            # If there's only one more part after 'scripts', it's top-level
+            if len(parts) - scripts_index == 2:  # scripts/filename.py
                 return True
         
         return False

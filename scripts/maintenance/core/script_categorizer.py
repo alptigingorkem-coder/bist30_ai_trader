@@ -38,26 +38,32 @@ class ScriptCategorizer:
         self.test_keywords = config.test_keywords if config.test_keywords else ['test', 'verify', 'validate', 'debug']
     
     def categorize_script(self, script_path: Path) -> str:
-        """Categorize a single script."""
-        if self.is_production_script(script_path):
-            return 'production'
+        """Categorize a single script based on filename patterns.
         
+        Note: This method only looks at the filename, not whether the script
+        is actually used in production. Use is_production_script() separately
+        if you need to check production usage.
+        """
         script_name = script_path.name.lower()
         
-        # Check for test keywords
+        # Check for test keywords first (most specific)
         if any(keyword in script_name for keyword in self.test_keywords):
             return 'integration_tests'
-        
-        # Check for analysis keywords
-        if any(keyword in script_name for keyword in self.analysis_keywords):
-            return 'analysis'
         
         # Check for maintenance keywords
         if any(keyword in script_name for keyword in self.maintenance_keywords):
             return 'maintenance'
         
-        # Default to analysis
-        return 'analysis'
+        # Check for analysis keywords
+        if any(keyword in script_name for keyword in self.analysis_keywords):
+            return 'analysis'
+        
+        # Check if explicitly listed as production in config
+        if script_path.name in self.production_scripts:
+            return 'production'
+        
+        # Default to production (conservative - don't move unknown scripts)
+        return 'production'
     
     def is_production_script(self, script_path: Path) -> bool:
         """Check if script is used in production."""

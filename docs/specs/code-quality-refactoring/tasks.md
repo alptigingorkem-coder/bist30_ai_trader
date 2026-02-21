@@ -108,13 +108,13 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Maintain backward compatibility with existing API
     - _Requirements: 1.1, 1.5, 1.7, 6.5_
   
-  - [ ]* 2.15 Write property test for API preservation
+  - [x]* 2.15 Write property test for API preservation
     - **Property 1: API Contract Preservation**
     - **Validates: Requirements 1.5**
     - For any public method, refactored version should behave identically to original
     - _Requirements: 5.7_
   
-  - [ ]* 2.16 Run existing PortfolioState tests
+  - [x]* 2.16 Run existing PortfolioState tests
     - Ensure all existing tests pass with refactored code
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_

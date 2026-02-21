@@ -147,13 +147,13 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Test regime recommendations
     - _Requirements: 5.2_
   
-  - [ ] 3.5 Create HealthReporter class
+  - [x] 3.5 Create HealthReporter class
     - Extract reporting methods (format_health_report, get_health_summary, export_health_report)
     - Implement report formatting
     - Add export functionality
     - _Requirements: 1.2, 1.4_
   
-  - [ ]* 3.6 Write unit tests for HealthReporter
+  - [x]* 3.6 Write unit tests for HealthReporter
     - Test health report formatting
     - Test health summary generation
     - Test report export

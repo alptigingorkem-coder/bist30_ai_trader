@@ -7,5 +7,6 @@ following the Single Responsibility Principle (SRP).
 
 from paper_trading.health.health_metrics import HealthMetrics
 from paper_trading.health.health_analyzer import HealthAnalyzer
+from paper_trading.health.health_reporter import HealthReporter
 
-__all__ = ['HealthMetrics', 'HealthAnalyzer']
+__all__ = ['HealthMetrics', 'HealthAnalyzer', 'HealthReporter']

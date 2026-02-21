@@ -67,6 +67,10 @@ class DRYAnalyzer:
     
     def _analyze_file(self, filepath: Path):
         """Tek bir dosyayı analiz et."""
+        # Skip symlinks
+        if filepath.is_symlink():
+            return
+        
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()

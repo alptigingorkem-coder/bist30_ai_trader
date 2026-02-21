@@ -30,15 +30,15 @@
 **Süre Tahmini:** 15-20 saat
 
 ### PortfolioState (686 satır, 38 method)
-- [ ] PortfolioRepository oluştur (2h)
-- [ ] PortfolioValidator oluştur (1.5h)
-- [ ] PortfolioService oluştur (3h)
-- [ ] PortfolioFormatter oluştur (2h)
-- [ ] PortfolioMetrics oluştur (2h)
+- [x] PortfolioRepository oluştur (2h) ✅
+- [x] PortfolioValidator oluştur (1.5h) ✅
+- [x] PortfolioService oluştur (3h) ✅
+- [x] PortfolioFormatter oluştur (2h) ✅
+- [x] PortfolioMetrics oluştur (2h) ✅
 - [ ] Integration & Testing (2h)
 
-**Durum:** 0% tamamlandı  
-**Harcanan Süre:** 0h / 12.5h  
+**Durum:** 83% tamamlandı  
+**Harcanan Süre:** 10.5h / 12.5h  
 **Engeller:** Yok
 
 ### StrategyHealth (625 satır, 30 method)

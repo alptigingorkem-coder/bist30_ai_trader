@@ -16,5 +16,12 @@ from paper_trading.portfolio.portfolio_repository import PortfolioRepository
 from paper_trading.portfolio.portfolio_validator import PortfolioValidator
 from paper_trading.portfolio.portfolio_service import PortfolioService
 from paper_trading.portfolio.portfolio_formatter import PortfolioFormatter
+from paper_trading.portfolio.portfolio_metrics import PortfolioMetrics
 
-__all__ = ["PortfolioRepository", "PortfolioValidator", "PortfolioService", "PortfolioFormatter"]
+__all__ = [
+    "PortfolioRepository",
+    "PortfolioValidator",
+    "PortfolioService",
+    "PortfolioFormatter",
+    "PortfolioMetrics",
+]

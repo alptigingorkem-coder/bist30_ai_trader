@@ -14,5 +14,6 @@ Components:
 
 from paper_trading.portfolio.portfolio_repository import PortfolioRepository
 from paper_trading.portfolio.portfolio_validator import PortfolioValidator
+from paper_trading.portfolio.portfolio_service import PortfolioService
 
-__all__ = ["PortfolioRepository", "PortfolioValidator"]
+__all__ = ["PortfolioRepository", "PortfolioValidator", "PortfolioService"]

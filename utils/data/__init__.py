@@ -9,5 +9,6 @@ This package contains specialized components for data handling:
 """
 
 from utils.data.data_repository import DataRepository
+from utils.data.data_cache import DataCache
 
-__all__ = ['DataRepository']
+__all__ = ['DataRepository', 'DataCache']

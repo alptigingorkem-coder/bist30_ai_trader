@@ -190,20 +190,20 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Add error handling for network issues
     - _Requirements: 1.3, 1.4, 9.1_
   
-  - [-]* 4.2 Write unit tests for DataRepository
+  - [x]* 4.2 Write unit tests for DataRepository
     - Test Yahoo Finance fetching
     - Test İş Yatırım fallback
     - Test fallback mechanism
     - Test error handling
     - _Requirements: 5.2_
   
-  - [ ] 4.3 Create DataCache class
+  - [x] 4.3 Create DataCache class
     - Extract caching methods (get, put, invalidate, is_cache_valid)
     - Implement Parquet file operations
     - Add cache age validation
     - _Requirements: 1.3, 1.4_
   
-  - [ ]* 4.4 Write unit tests for DataCache
+  - [-]* 4.4 Write unit tests for DataCache
     - Test cache get with valid cache
     - Test cache get with expired cache
     - Test cache put

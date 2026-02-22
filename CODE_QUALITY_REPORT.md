@@ -1,6 +1,6 @@
 # Code Quality Analysis Report
 
-Date: 2026-02-22T00:49:27.470558
+Date: 2026-02-22T15:11:39.097791
 
 ## Overall Score: 29.7/100 (F (Başarısız) 🔴)
 
@@ -18,12 +18,12 @@ Kod kalitesi çok düşük. Kapsamlı refactoring şart.
 ## Statistics
 
 - Duplicate code groups: 1
-- SRP violations: 92
-- Complex functions: 67
-- Code smells: 1222
+- SRP violations: 139
+- Complex functions: 65
+- Code smells: 1346
 
 ## Priority Actions
 
-2. SRP ihlallerini düzelt (92 sınıf çok fazla sorumluluk taşıyor)
-3. Karmaşık fonksiyonları basitleştir (67 fonksiyon çok karmaşık)
-4. Kritik code smell'leri düzelt (66 adet)
+2. SRP ihlallerini düzelt (139 sınıf çok fazla sorumluluk taşıyor)
+3. Karmaşık fonksiyonları basitleştir (65 fonksiyon çok karmaşık)
+4. Kritik code smell'leri düzelt (64 adet)

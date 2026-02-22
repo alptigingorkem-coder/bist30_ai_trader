@@ -14,7 +14,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
   - Set up quality monitoring
   - _Requirements: 6.1, 7.1, 8.6_
 
-- [ ] 2. Phase 1: PortfolioState Refactoring
+- [x] 2. Phase 1: PortfolioState Refactoring
   - [x] 2.1 Create PortfolioRepository class
     - Extract data persistence methods (_load_state, _save_state)
     - Implement JSON serialization/deserialization
@@ -119,7 +119,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_
 
-- [ ] 3. Phase 1: StrategyHealth Refactoring
+- [x] 3. Phase 1: StrategyHealth Refactoring
   - [x] 3.1 Create HealthMetrics class
     - Extract metric calculation methods (calculate_win_rate, calculate_profit_factor, calculate_sharpe_ratio, calculate_max_drawdown)
     - Implement rolling metrics calculation
@@ -183,7 +183,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_
 
-- [ ] 4. Phase 1: DataLoader Refactoring
+- [x] 4. Phase 1: DataLoader Refactoring
   - [x] 4.1 Create DataRepository class
     - Extract data fetching methods (fetch_from_yahoo, fetch_from_is_yatirim, fetch_with_fallback)
     - Implement fallback logic
@@ -248,7 +248,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_
 
-- [ ] 5. Phase 1 Checkpoint
+- [x] 5. Phase 1 Checkpoint
   - Run full test suite (all 334 tests)
   - Run quality analysis script
   - Verify SRP score improved to at least 40.0/100

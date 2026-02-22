@@ -216,34 +216,34 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Add anomaly detection
     - _Requirements: 1.3, 1.4_
   
-  - [-]* 4.6 Write unit tests for DataValidator
+  - [x]* 4.6 Write unit tests for DataValidator
     - Test data validation with valid data
     - Test gap detection
     - Test anomaly detection
     - Test column validation
     - _Requirements: 5.2_
   
-  - [ ] 4.7 Create DataTransformer class
+  - [x] 4.7 Create DataTransformer class
     - Extract transformation methods (clean_data, add_technical_indicators, resample_data, align_data)
     - Implement data cleaning logic
     - Add technical indicator calculations
     - _Requirements: 1.3, 1.4_
   
-  - [ ]* 4.8 Write unit tests for DataTransformer
+  - [x]* 4.8 Write unit tests for DataTransformer
     - Test data cleaning
     - Test technical indicator addition
     - Test data resampling
     - Test data alignment
     - _Requirements: 5.2_
   
-  - [ ] 4.9 Refactor DataLoader to use new components
+  - [x] 4.9 Refactor DataLoader to use new components
     - Simplify DataLoader to facade role (80-100 lines)
     - Initialize specialized components in __init__
     - Delegate method calls to appropriate components
     - Maintain backward compatibility
     - _Requirements: 1.3, 1.5, 1.9, 6.5, 9.5_
   
-  - [ ]* 4.10 Run existing DataLoader tests
+  - [x]* 4.10 Run existing DataLoader tests
     - Ensure all existing tests pass with refactored code
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_

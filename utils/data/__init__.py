@@ -11,5 +11,6 @@ This package contains specialized components for data handling:
 from utils.data.data_repository import DataRepository
 from utils.data.data_cache import DataCache
 from utils.data.data_validator import DataValidator
+from utils.data.data_transformer import DataTransformer
 
-__all__ = ['DataRepository', 'DataCache', 'DataValidator']
+__all__ = ['DataRepository', 'DataCache', 'DataValidator', 'DataTransformer']

@@ -267,7 +267,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Extract report generation into _generate_report()
     - _Requirements: 2.1, 2.6, 9.3_
   
-  - [ ]* 6.2 Write unit tests for BacktestCommand
+  - [x]* 6.2 Write unit tests for BacktestCommand
     - Test configuration loading
     - Test data loading
     - Test model loading

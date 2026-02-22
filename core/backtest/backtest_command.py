@@ -14,7 +14,6 @@ import torch
 from typing import Dict, Optional, Tuple, Any
 
 import config
-from configs import banking as config_banking
 from core.backtesting import Backtester
 from core.macro_gate import vectorized_macro_gate
 from models.ranking_model import RankingModel
@@ -159,14 +158,14 @@ class BacktestCommand:
             if self.args.model == 'lightgbm':
                 self.ranker = RankingModel.load(
                     "models/saved/global_ranker.pkl", 
-                    config_banking
+                    self.config
                 )
                 
             elif self.args.model == 'catboost':
                 from models.ranking_model_catboost import CatBoostRankingModel
                 self.ranker = CatBoostRankingModel.load(
                     "models/saved/global_ranker_catboost.cbm", 
-                    config_banking
+                    self.config
                 )
                 
             elif self.args.model == 'ensemble':

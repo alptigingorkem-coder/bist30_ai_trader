@@ -203,20 +203,20 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Add cache age validation
     - _Requirements: 1.3, 1.4_
   
-  - [-]* 4.4 Write unit tests for DataCache
+  - [x]* 4.4 Write unit tests for DataCache
     - Test cache get with valid cache
     - Test cache get with expired cache
     - Test cache put
     - Test cache invalidation
     - _Requirements: 5.2_
   
-  - [ ] 4.5 Create DataValidator class
+  - [x] 4.5 Create DataValidator class
     - Extract validation methods (validate_data, check_for_gaps, check_for_anomalies, validate_columns)
     - Implement data quality checks
     - Add anomaly detection
     - _Requirements: 1.3, 1.4_
   
-  - [ ]* 4.6 Write unit tests for DataValidator
+  - [-]* 4.6 Write unit tests for DataValidator
     - Test data validation with valid data
     - Test gap detection
     - Test anomaly detection

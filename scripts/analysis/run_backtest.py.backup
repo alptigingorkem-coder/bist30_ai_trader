@@ -12,14 +12,14 @@ import pandas as pd
 import torch
 
 import config
+from configs import banking as config_banking
 from core.backtesting import Backtester
-from core.backtest.backtest_command import BacktestCommand
 from core.macro_gate import vectorized_macro_gate
 from models.ranking_model import RankingModel
 from utils.data_loader import DataLoader
 from utils.feature_engineering import FeatureEngineer
 
-def main_legacy():
+def main():
     if not os.path.exists("reports"):
         os.makedirs("reports")
 
@@ -640,39 +640,6 @@ def main_legacy():
                     print(f"  Beta               : {beta:.2f}")
                     print(f"  Alpha (Excess)     : {alpha_excess:.2%}")
                     print(f"  Alpha (Jensen)     : {alpha_jensen:.2%}")
-
-
-def main():
-    """
-    Main entry point for backtest execution.
-    
-    This is the refactored version using BacktestCommand.
-    The legacy implementation is preserved as main_legacy() for reference.
-    
-    Note: Full backtest logic migration to BacktestCommand is in progress.
-    For now, this demonstrates the simplified structure.
-    """
-    # Parse arguments to determine if we should use legacy or new implementation
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--legacy', action='store_true', help='Use legacy implementation')
-    parser.add_argument('--mode', type=str, default='oos', choices=['oos', 'is'])
-    parser.add_argument('--model', type=str, default='lightgbm', choices=['lightgbm', 'catboost', 'ensemble'])
-    args = parser.parse_args()
-    
-    if args.legacy:
-        # Use legacy implementation
-        print("Using legacy implementation...")
-        main_legacy()
-    else:
-        # Use new BacktestCommand implementation
-        print("Using BacktestCommand implementation...")
-        print("Note: Full backtest logic migration is in progress.")
-        print("For complete functionality, use --legacy flag.")
-        
-        command = BacktestCommand(args=args)
-        exit_code = command.execute()
-        sys.exit(exit_code)
-
 
 if __name__ == "__main__":
     main()

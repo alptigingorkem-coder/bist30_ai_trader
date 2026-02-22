@@ -276,7 +276,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Test complete workflow
     - _Requirements: 5.2_
   
-  - [ ] 6.3 Refactor main() to use BacktestCommand
+  - [x] 6.3 Refactor main() to use BacktestCommand
     - Simplify main() to 50 lines
     - Instantiate BacktestCommand
     - Call execute() method

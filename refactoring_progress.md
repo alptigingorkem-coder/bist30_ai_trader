@@ -86,19 +86,28 @@
 
 ---
 
-## 🎯 Faz 2: Complexity Reduction
+## 🎯 Faz 2: Complexity Reduction ⏳ DEVAM EDİYOR
 
 **Hedef:** Complexity > 60.0/100  
-**Süre Tahmini:** 12-15 saat
+**Durum:** Task 6 tamamlandı (main() refactoring)
 
-### Karmaşık Fonksiyonlar
-- [ ] main() (CC: 85, 620 satır) → BacktestCommand
+### main() Function (620 → 40 satır) ✅
+- [x] BacktestCommand sınıfı oluştur ✅
+- [x] Unit testler yaz (26 test) ✅
+- [x] main() refactor et ✅
+- [x] Mevcut testleri çalıştır (30/30 geçti) ✅
+
+**Durum:** 100% tamamlandı  
+**Test Sonuçları:** 30/30 test geçti  
+**Azalma:** 620 → 40 satır (93% azalma)
+
+### Kalan Karmaşık Fonksiyonlar
 - [ ] run_backtest() (CC: 65, 417 satır) → BacktestStrategy
 - [ ] run_position_aware_session() (CC: 36, 304 satır) → Session class
 - [ ] comprehensive_walk_forward() (291 satır) → Extract methods
 - [ ] run_dynamic_backtest() (280 satır) → Extract methods
 
-**Durum:** 0% tamamlandı
+**Genel Durum:** 20% tamamlandı (1/5 fonksiyon)
 
 ---
 
@@ -128,12 +137,33 @@
 
 ---
 
+## 📊 Ara Değerlendirme (2026-02-22 15:30)
+
+**Test Suite:** ✅ 736/736 test geçti (100%)  
+**Yeni Testler:** +26 test (BacktestCommand)
+
+**Phase 2 İlerleme:**
+- Task 6 (main() refactoring): ✅ Tamamlandı
+- main() fonksiyonu: 620 → 40 satır (93% azalma)
+- BacktestCommand sınıfı oluşturuldu
+- 26 yeni unit test eklendi
+- Backward compatibility korundu (--legacy flag)
+
+**Toplam İlerleme:**
+- Phase 1: ✅ 100% tamamlandı
+- Phase 2: ⏳ 20% tamamlandı (1/5 fonksiyon)
+- Toplam yeni testler: 424 test
+- Toplam kod azaltımı: ~2,100 satır
+
+---
+
 ## 📈 Kalite Skor Geçmişi
 
 | Tarih | Overall | DRY | SRP | Complexity | Smells | Notlar |
 |-------|---------|-----|-----|------------|--------|--------|
 | 2026-02-22 00:49 | 29.7 | 99.1 | 0.0 | 0.0 | 0.0 | Baseline |
 | 2026-02-22 15:11 | 29.7 | 99.1 | 0.0 | 0.0 | 0.0 | Phase 1 Complete |
+| 2026-02-22 15:30 | - | - | - | - | - | Phase 2 Partial (Task 6) |
 
 ---
 
@@ -141,13 +171,14 @@
 
 1. ✅ Branch oluşturuldu: `refactoring/phase-1-god-classes`
 2. ✅ Baseline metrics kaydedildi
-3. ✅ Test durumu doğrulandı (710/710)
+3. ✅ Test durumu doğrulandı (736/736)
 4. ✅ **Phase 1 TAMAMLANDI:** 3 God Class refactor edildi
-5. ⏭️ **Sırada:** Phase 2 - Complexity Reduction
+5. ✅ **Task 6 TAMAMLANDI:** main() refactor edildi
+6. ⏭️ **Sırada:** Task 7 - run_backtest() refactoring
 
 ---
 
-**Son Güncelleme:** 2026-02-22 15:11  
+**Son Güncelleme:** 2026-02-22 15:30  
 **Aktif Branch:** refactoring/phase-1-god-classes  
-**Durum:** ✅ Phase 1 tamamlandı, Phase 2'ye hazır
+**Durum:** ✅ Phase 1 tamamlandı, Phase 2 devam ediyor (20%)
 

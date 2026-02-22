@@ -171,26 +171,26 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
     - Test regime skip logic
     - _Requirements: 5.2_
   
-  - [-] 3.9 Refactor StrategyHealth to use new components
+  - [x] 3.9 Refactor StrategyHealth to use new components
     - Simplify StrategyHealth to orchestrator role (100-120 lines)
     - Initialize specialized components in __init__
     - Delegate method calls to appropriate components
     - Maintain backward compatibility
     - _Requirements: 1.2, 1.5, 1.8, 6.5_
   
-  - [ ]* 3.10 Run existing StrategyHealth tests
+  - [x]* 3.10 Run existing StrategyHealth tests
     - Ensure all existing tests pass with refactored code
     - Update tests if needed for new structure
     - _Requirements: 1.6, 5.1, 5.6_
 
 - [ ] 4. Phase 1: DataLoader Refactoring
-  - [ ] 4.1 Create DataRepository class
+  - [x] 4.1 Create DataRepository class
     - Extract data fetching methods (fetch_from_yahoo, fetch_from_is_yatirim, fetch_with_fallback)
     - Implement fallback logic
     - Add error handling for network issues
     - _Requirements: 1.3, 1.4, 9.1_
   
-  - [ ]* 4.2 Write unit tests for DataRepository
+  - [-]* 4.2 Write unit tests for DataRepository
     - Test Yahoo Finance fetching
     - Test İş Yatırım fallback
     - Test fallback mechanism

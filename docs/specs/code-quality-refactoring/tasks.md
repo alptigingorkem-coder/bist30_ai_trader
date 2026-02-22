@@ -257,7 +257,7 @@ The plan follows a test-driven refactoring approach: existing tests must pass be
   - _Requirements: 5.1, 6.3, 7.5, 8.1_
 
 - [ ] 6. Phase 2: main() Function Refactoring
-  - [ ] 6.1 Create BacktestCommand class
+  - [x] 6.1 Create BacktestCommand class
     - Implement Command pattern for backtest orchestration
     - Create execute() method as main entry point
     - Extract configuration loading into _load_configuration()
